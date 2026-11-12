@@ -33,6 +33,10 @@ NO inventes: propón una decisión, regístrala en `docs/assumptions.md` y en un
   `estado`, `respuesta`, `fuentes`, `protocolo`, `seccion`, `pregunta`), valores (`REGISTRADO`, `EN_CONSULTA`,
   `ALTA`, `CRITICO`...), topic `triaje.eventos` y eventos `paciente_registrado`, `paciente_en_consulta`,
   `paciente_alta`, `paciente_escalado`. Usa DTOs con `@JsonProperty`; el dominio sigue en inglés.
+- Valores internos en inglés (dominio y BD, guardados con `name()` del enum): estado `REGISTERED`, `IN_CONSULTATION`,
+  `DISCHARGED`; nivel `CRITICAL`, `URGENT`, `URGENT_2`, `NON_URGENT`, `NON_URGENT_2`; tipo de auditoría
+  `PATIENT_REGISTERED`, `PATIENT_IN_CONSULTATION`, `PATIENT_DISCHARGED`, `PATIENT_ESCALATED`. Los valores del contrato
+  en español se mapean SOLO en la frontera (DTOs de la API y eventos de Kafka) con un mapper en `infrastructure`.
 - Arquitectura hexagonal por servicio: `domain` (sin Spring), `application` (casos de uso, puertos), `infrastructure` (adaptadores).
 - Fechas: `Instant` en UTC y `timestamptz`. Inyecta `Clock`; nunca `Instant.now()` directo en la lógica.
 - Temperatura con `BigDecimal`.
@@ -50,7 +54,7 @@ NO inventes: propón una decisión, regístrala en `docs/assumptions.md` y en un
   (minúsculas, sin tildes, trim) coincide EXACTO con la lista administrativa.
 - SLA e intervalo del scheduler en `application.yml` (`triage.sla.*`, `triage.escalation.interval`). El SLA del
   paciente se guarda al registrarlo. "Superó SLA" = `now > registeredAt + sla` (estricto).
-- Escalamiento: un único `UPDATE ... WHERE status='REGISTRADO' AND escalated=false RETURNING`; si no devuelve
+- Escalamiento: un único `UPDATE ... WHERE status='REGISTERED' AND escalated=false RETURNING`; si no devuelve
   fila, no se publica evento ni se audita (RN-03, carreras y múltiples réplicas).
 - Paciente + auditoría en la MISMA transacción; el evento se publica a Kafka después del commit (nivel 1).
   Diseña el publicador detrás de un puerto (`PatientEventPublisher`) para poder cambiarlo a Outbox (nivel 2) sin tocar los casos de uso.
