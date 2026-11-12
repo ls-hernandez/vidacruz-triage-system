@@ -9,11 +9,28 @@ CLAUDE.local.md
 
 # Maven / Java
 target/
+.mvn/wrapper/maven-wrapper.jar
 *.class
 *.log
 
 # IDE
 .idea/
 *.iml
+*.iws
+*.ipr
 .vscode/
 .DS_Store
+# STS / Eclipse
+.apt_generated
+.classpath
+.factorypath
+.project
+.settings
+.springBeans
+.sts4-cache
+# NetBeans
+/nbproject/private/
+/nbbuild/
+/dist/
+/nbdist/
+/.nb-gradle/

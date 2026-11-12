@@ -1,0 +1,29 @@
+spring:
+  application:
+    name: assistant-service
+  config:
+    # Local convenience: load the root .env (KEY=VALUE) when running from the repo root or from the module
+    # directory (IDE / spring-boot:run). Real environment variables always take precedence.
+    import:
+      - optional:file:.env[.properties]
+      - optional:file:../.env[.properties]
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+  ai:
+    openai:
+      # Spring AI rejects an empty key at startup. The placeholder lets the service start without a key;
+      # LLM calls then fail and will be turned into 503 by the circuit breaker (see docs/assumptions.md).
+      api-key: ${OPENAI_API_KEY:not-configured}
+
+server:
+  port: ${ASSISTANT_SERVER_PORT:8081}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info

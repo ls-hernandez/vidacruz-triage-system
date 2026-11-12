@@ -1,0 +1,29 @@
+spring:
+  application:
+    name: triage-service
+  config:
+    # Local convenience: load the root .env (KEY=VALUE) when running from the repo root or from the module
+    # directory (IDE / spring-boot:run). Real environment variables always take precedence.
+    import:
+      - optional:file:.env[.properties]
+      - optional:file:../.env[.properties]
+  r2dbc:
+    url: r2dbc:postgresql://${POSTGRES_HOST:localhost}:${POSTGRES_PORT:5432}/${POSTGRES_DB:triage}
+    username: ${POSTGRES_USER:triage}
+    password: ${POSTGRES_PASSWORD}
+  flyway:
+    # Flyway uses its own JDBC connection at startup; the application itself only uses R2DBC
+    url: jdbc:postgresql://${POSTGRES_HOST:localhost}:${POSTGRES_PORT:5432}/${POSTGRES_DB:triage}
+    user: ${POSTGRES_USER:triage}
+    password: ${POSTGRES_PASSWORD}
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+
+server:
+  port: ${TRIAGE_SERVER_PORT:8080}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
