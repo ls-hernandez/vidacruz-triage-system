@@ -1,5 +1,6 @@
 package com.vidacruz.triage.domain;
 
+import java.time.Duration;
 import java.time.Instant;
 import java.util.Objects;
 import java.util.UUID;
@@ -46,6 +47,16 @@ public record Patient(
 			TriageLevel level, int slaMinutes, Instant now) {
 		return new Patient(id, fullName, age, vitalSigns, chiefComplaint, level, slaMinutes,
 				PatientStatus.REGISTERED, false, null, now, now, 0);
+	}
+
+	/**
+	 * RF-03: the patient exceeded its SLA (RN-02) without entering consultation and was not escalated yet.
+	 * Strict: exactly at {@code registeredAt + slaMinutes} the patient is not overdue.
+	 */
+	public boolean isOverdueAt(Instant now) {
+		Objects.requireNonNull(now, "now must not be null");
+		return status == PatientStatus.REGISTERED && !escalated
+				&& now.isAfter(registeredAt.plus(Duration.ofMinutes(slaMinutes)));
 	}
 
 	/**

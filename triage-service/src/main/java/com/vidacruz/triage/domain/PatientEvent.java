@@ -30,6 +30,13 @@ public record PatientEvent(
 				updated.id(), updated.level(), updated.status());
 	}
 
+	/** {@code paciente_escalado}, built from the persisted row after the escalation (RF-03). */
+	public static PatientEvent escalated(UUID eventId, Patient escalated) {
+		AuditEntry.requireEscalated(escalated);
+		return new PatientEvent(eventId, PatientEventType.PATIENT_ESCALATED, escalated.escalatedAt(), escalated.id(),
+				escalated.level(), escalated.status());
+	}
+
 	public static PatientEvent registered(UUID eventId, Patient patient) {
 		return new PatientEvent(eventId, PatientEventType.PATIENT_REGISTERED, patient.registeredAt(), patient.id(),
 				patient.level(), patient.status());

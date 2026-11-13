@@ -32,6 +32,22 @@ public record AuditEntry(
 				PatientEventType.forStatusChange(updated.status()), updated.statusChangedAt());
 	}
 
+	/**
+	 * Escalation (RF-03): the status does not change ({@code REGISTERED → REGISTERED}), the event type identifies it.
+	 * {@code escalated} must be the persisted row after the escalation.
+	 */
+	public static AuditEntry escalation(Patient escalated) {
+		requireEscalated(escalated);
+		return new AuditEntry(escalated.id(), escalated.status(), escalated.status(),
+				PatientEventType.PATIENT_ESCALATED, escalated.escalatedAt());
+	}
+
+	static void requireEscalated(Patient patient) {
+		if (!patient.escalated()) {
+			throw new IllegalArgumentException("Patient " + patient.id() + " is not escalated");
+		}
+	}
+
 	public static AuditEntry registration(Patient patient) {
 		return new AuditEntry(patient.id(), null, patient.status(), PatientEventType.PATIENT_REGISTERED,
 				patient.registeredAt());
