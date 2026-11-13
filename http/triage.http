@@ -96,3 +96,87 @@ GET {{baseUrl}}/triage/reportes/operacion?desde=2026-11-13T00:00:00-05:00&hasta=
 GET {{baseUrl}}/triage/reportes/operacion?hasta=2026-11-14&zonaHoraria=Mars/Base
 
 
+### E2 - esperado URGENTE
+POST http://localhost:8080/triage/pacientes
+Content-Type: application/json
+
+{
+  "nombreCompleto": "Paciente E2",
+  "edad": 60,
+  "frecuenciaCardiaca": 95,
+  "presionSistolica": 150,
+  "presionDiastolica": 95,
+  "spo2": 91,
+  "temperatura": 37.0,
+  "dolor": 4,
+  "gcs": 15,
+  "quejaPrincipal": "Dificultad para respirar"
+}
+
+### E3 - esperado URGENTE_2
+POST http://localhost:8080/triage/pacientes
+Content-Type: application/json
+
+{
+  "nombreCompleto": "Paciente E3",
+  "edad": 30,
+  "frecuenciaCardiaca": 88,
+  "presionSistolica": 130,
+  "presionDiastolica": 85,
+  "spo2": 98,
+  "temperatura": 38.2,
+  "dolor": 6,
+  "gcs": 15,
+  "quejaPrincipal": "Fiebre"
+}
+
+### E4 - esperado NO_URGENTE
+POST http://localhost:8080/triage/pacientes
+Content-Type: application/json
+
+{
+  "nombreCompleto": "Paciente E4",
+  "edad": 25,
+  "frecuenciaCardiaca": 72,
+  "presionSistolica": 120,
+  "presionDiastolica": 80,
+  "spo2": 99,
+  "temperatura": 36.5,
+  "dolor": 2,
+  "gcs": 15,
+  "quejaPrincipal": "Herida por cortar"
+}
+
+### E5 - esperado NO_URGENTE_2
+POST http://localhost:8080/triage/pacientes
+Content-Type: application/json
+
+{
+  "nombreCompleto": "Paciente E5",
+  "edad": 50,
+  "frecuenciaCardiaca": 70,
+  "presionSistolica": 115,
+  "presionDiastolica": 75,
+  "spo2": 99,
+  "temperatura": 36.4,
+  "dolor": 0,
+  "gcs": 15,
+  "quejaPrincipal": "Renovación de recetario"
+}
+
+### E6 - esperado CRITICO
+POST http://localhost:8080/triage/pacientes
+Content-Type: application/json
+
+{
+  "nombreCompleto": "Paciente E6",
+  "edad": 70,
+  "frecuenciaCardiaca": 35,
+  "presionSistolica": 80,
+  "presionDiastolica": 50,
+  "spo2": 85,
+  "temperatura": 35.9,
+  "dolor": 0,
+  "gcs": 6,
+  "quejaPrincipal": "Inconsciente"
+}

@@ -6,9 +6,11 @@ NO inventes: propón una decisión, regístrala en `docs/assumptions.md` y en un
 
 ## Alcance acordado (respetar estrictamente)
 - Nivel 1 (implementar): RF-01, RF-02, RF-03, RF-05, eventos a Kafka, RF-04 B, RF-04 A con vector store en
-  memoria y circuit breaker/503, tests obligatorios, docker-compose, README con "Alcance entregado" y 2+ ADRs.
-- Nivel 2 (solo si Sebastián lo pide, en este orden): API key + health, métricas/logs con traceId, manifests K8s,
-  Outbox, RF-06 con SSE, despliegue en Azure.
+  memoria y circuit breaker/503, autenticación por API key en ambos servicios (header X-API-Key, health
+  público), observabilidad obligatoria (health/readiness, logs estructurados con correlación, métricas con
+  Micrometer: clasificaciones por nivel, escalamientos y latencia del LLM), tests obligatorios,
+  docker-compose, README con "Alcance entregado" y 2+ ADRs.
+- Nivel 2 (solo si Sebastián lo pide, en este orden): manifests K8s, Outbox, RF-06 con SSE, despliegue en Azure.
 - Nivel 3 (NO implementar, solo documentar): BlockHound, OpenTelemetry, pgvector, CI.
 - No adelantes trabajo de nivel 2 o 3 aunque parezca fácil. Si algo de nivel 1 lo necesita, pregunta.
 
