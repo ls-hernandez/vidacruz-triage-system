@@ -73,3 +73,14 @@ GET {{baseUrl}}/triage/pacientes/abc
 
 ### RF-02 — Unknown patient (expected: 404, "Paciente no encontrado")
 GET {{baseUrl}}/triage/pacientes/00000000-0000-0000-0000-000000000000
+
+### RF-03 — Manual escalation test
+# Start the service with a 1-minute CRITICO SLA and a short evaluation interval, e.g. from the repo root:
+#   TRIAGE_SLA_CRITICAL=1 TRIAGE_ESCALATION_INTERVAL=PT5S ./mvnw -pl triage-service spring-boot:run
+# (PowerShell: $env:TRIAGE_SLA_CRITICAL="1"; $env:TRIAGE_ESCALATION_INTERVAL="PT5S"; ./mvnw -pl triage-service spring-boot:run)
+# 1. Register example E1 with the first request of this file (CRITICO, slaMinutos = 1) and keep its id in patientId.
+# 2. Wait a bit more than 1 minute (+ up to one interval): the log shows "Escalated 1 overdue patient(s)".
+# 3. Run the GET below: escalado = true, fechaEscalamiento set, estado still REGISTRADO.
+#    The topic triaje.eventos gets one paciente_escalado with key = patientId; later cycles do not repeat it.
+# 4. PATCH to EN_CONSULTA (RF-02 request above) still works and keeps escalado = true.
+GET {{baseUrl}}/triage/pacientes/{{patientId}}
