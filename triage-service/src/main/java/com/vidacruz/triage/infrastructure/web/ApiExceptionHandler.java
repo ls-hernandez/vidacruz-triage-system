@@ -31,7 +31,8 @@ import reactor.core.publisher.Mono;
 /**
  * Turns input errors into 400 {@link ProblemDetail} responses in Spanish. Every invalid field is listed in
  * {@code errors} as {@code {campo, mensaje}}; a body that is not valid JSON is a 400, never a 500.
- * Also maps the application errors: unknown patient (404), invalid transition and concurrent modification (409).
+ * Invalid query parameters (RF-05) use the same format. Also maps the application errors: unknown patient (404),
+ * invalid transition and concurrent modification (409).
  */
 @RestControllerAdvice
 class ApiExceptionHandler extends ResponseEntityExceptionHandler {
@@ -77,6 +78,15 @@ class ApiExceptionHandler extends ResponseEntityExceptionHandler {
 			return badRequest("El cuerpo de la solicitud es obligatorio y debe ser un JSON válido.", List.of());
 		}
 		return super.handleServerWebInputException(ex, headers, status, exchange);
+	}
+
+	@ExceptionHandler(InvalidRequestParametersException.class)
+	Mono<ResponseEntity<Object>> handleInvalidRequestParameters(InvalidRequestParametersException ex) {
+		List<InvalidField> errors = ex.errors()
+			.stream()
+			.sorted(Comparator.comparing(InvalidField::campo).thenComparing(InvalidField::mensaje))
+			.toList();
+		return badRequest("La solicitud contiene parámetros inválidos.", errors);
 	}
 
 	@ExceptionHandler(PatientNotFoundException.class)
