@@ -31,6 +31,16 @@ public final class ContractMapper {
 		};
 	}
 
+	/** Inverse of {@link #status(PatientStatus)}; the input must already be validated as a contract value. */
+	public static PatientStatus parseStatus(String status) {
+		return switch (status) {
+			case "REGISTRADO" -> PatientStatus.REGISTERED;
+			case "EN_CONSULTA" -> PatientStatus.IN_CONSULTATION;
+			case "ALTA" -> PatientStatus.DISCHARGED;
+			default -> throw new IllegalArgumentException("Unknown patient status: " + status);
+		};
+	}
+
 	public static String eventType(PatientEventType type) {
 		return switch (type) {
 			case PATIENT_REGISTERED -> "paciente_registrado";

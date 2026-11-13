@@ -8,20 +8,15 @@ import static org.hamcrest.Matchers.hasSize;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.vidacruz.triage.TestcontainersConfiguration;
+import com.vidacruz.triage.support.PatientEventsConsumer;
 import java.math.BigDecimal;
-import java.time.Duration;
 import java.time.Instant;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.UUID;
 import java.util.function.Consumer;
 import java.util.stream.Stream;
-import org.apache.kafka.clients.consumer.ConsumerConfig;
-import org.apache.kafka.clients.consumer.ConsumerRecord;
-import org.apache.kafka.clients.consumer.KafkaConsumer;
-import org.apache.kafka.common.serialization.StringDeserializer;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
@@ -48,7 +43,6 @@ import reactor.test.StepVerifier;
 class RegisterPatientApiTest {
 
 	private static final String PATH = "/triage/pacientes";
-	private static final String TOPIC = "triaje.eventos";
 
 	private static final List<String> FIELDS = List.of("nombreCompleto", "edad", "frecuenciaCardiaca",
 			"presionSistolica", "presionDiastolica", "spo2", "temperatura", "dolor", "gcs", "quejaPrincipal");
@@ -338,41 +332,20 @@ class RegisterPatientApiTest {
 	}
 
 	@Test
-	void publishesPatientRegisteredKeyedByPatientId() throws Exception {
+	void publishesPatientRegisteredKeyedByPatientId() {
 		RegisteredPatient patient = register(e1(b -> { }));
 
-		ConsumerRecord<String, String> record = consumeByKey(patient.id().toString())
-			.orElseThrow(() -> new AssertionError("no event for patient " + patient.id() + " in " + TOPIC));
+		List<JsonNode> events = new PatientEventsConsumer(kafka.getBootstrapServers(), objectMapper)
+			.eventsFor(patient.id(), 1);
 
-		JsonNode event = objectMapper.readTree(record.value());
-		assertThat(event.get("eventId").asText()).isNotBlank();
-		assertThat(event.get("eventType").asText()).isEqualTo("paciente_registrado");
-		assertThat(event.get("patientId").asText()).isEqualTo(patient.id().toString());
-		assertThat(event.get("level").asText()).isEqualTo("CRITICO");
-		assertThat(event.get("status").asText()).isEqualTo("REGISTRADO");
-		assertThat(Instant.parse(event.get("occurredAt").asText())).isEqualTo(patient.fechaRegistro());
-	}
-
-	/** Test-only blocking consumer: reads the topic from the beginning until it finds the key or times out. */
-	private Optional<ConsumerRecord<String, String>> consumeByKey(String key) {
-		Map<String, Object> config = Map.of(
-				ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, kafka.getBootstrapServers(),
-				ConsumerConfig.GROUP_ID_CONFIG, "rf01-test-" + UUID.randomUUID(),
-				ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest",
-				ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class,
-				ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class);
-		try (KafkaConsumer<String, String> consumer = new KafkaConsumer<>(config)) {
-			consumer.subscribe(List.of(TOPIC));
-			Instant deadline = Instant.now().plusSeconds(20);
-			while (Instant.now().isBefore(deadline)) {
-				for (ConsumerRecord<String, String> record : consumer.poll(Duration.ofMillis(500))) {
-					if (key.equals(record.key())) {
-						return Optional.of(record);
-					}
-				}
-			}
-		}
-		return Optional.empty();
+		assertThat(events).singleElement().satisfies(event -> {
+			assertThat(event.get("eventId").asText()).isNotBlank();
+			assertThat(event.get("eventType").asText()).isEqualTo("paciente_registrado");
+			assertThat(event.get("patientId").asText()).isEqualTo(patient.id().toString());
+			assertThat(event.get("level").asText()).isEqualTo("CRITICO");
+			assertThat(event.get("status").asText()).isEqualTo("REGISTRADO");
+			assertThat(Instant.parse(event.get("occurredAt").asText())).isEqualTo(patient.fechaRegistro());
+		});
 	}
 
 }

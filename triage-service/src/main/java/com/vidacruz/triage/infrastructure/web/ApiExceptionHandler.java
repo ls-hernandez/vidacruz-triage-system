@@ -3,15 +3,24 @@ package com.vidacruz.triage.infrastructure.web;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonMappingException;
 import com.fasterxml.jackson.databind.exc.MismatchedInputException;
+import com.vidacruz.triage.application.ConcurrentPatientUpdateException;
+import com.vidacruz.triage.application.PatientNotFoundException;
+import com.vidacruz.triage.domain.InvalidStatusTransitionException;
+import com.vidacruz.triage.infrastructure.contract.ContractMapper;
 import java.math.BigDecimal;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
+import java.util.UUID;
+import org.springframework.beans.TypeMismatchException;
+import org.springframework.core.MethodParameter;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.http.ProblemDetail;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.ExceptionHandler;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.bind.support.WebExchangeBindException;
 import org.springframework.web.reactive.result.method.annotation.ResponseEntityExceptionHandler;
@@ -22,6 +31,7 @@ import reactor.core.publisher.Mono;
 /**
  * Turns input errors into 400 {@link ProblemDetail} responses in Spanish. Every invalid field is listed in
  * {@code errors} as {@code {campo, mensaje}}; a body that is not valid JSON is a 400, never a 500.
+ * Also maps the application errors: unknown patient (404), invalid transition and concurrent modification (409).
  */
 @RestControllerAdvice
 class ApiExceptionHandler extends ResponseEntityExceptionHandler {
@@ -46,6 +56,12 @@ class ApiExceptionHandler extends ResponseEntityExceptionHandler {
 	@Override
 	protected Mono<ResponseEntity<Object>> handleServerWebInputException(ServerWebInputException ex,
 			HttpHeaders headers, HttpStatusCode status, ServerWebExchange exchange) {
+		if (findCause(ex, TypeMismatchException.class) != null && ex.getMethodParameter() != null) {
+			// path variable that cannot be converted, e.g. an id that is not a UUID (assumption 13)
+			return badRequest("La solicitud contiene campos inválidos.",
+					List.of(new InvalidField(pathVariableName(ex.getMethodParameter()),
+							expectedType(ex.getMethodParameter().getParameterType()))));
+		}
 		JsonProcessingException jsonError = findCause(ex, JsonProcessingException.class);
 		if (jsonError instanceof MismatchedInputException mismatch) {
 			String field = fieldName(mismatch);
@@ -61,6 +77,42 @@ class ApiExceptionHandler extends ResponseEntityExceptionHandler {
 			return badRequest("El cuerpo de la solicitud es obligatorio y debe ser un JSON válido.", List.of());
 		}
 		return super.handleServerWebInputException(ex, headers, status, exchange);
+	}
+
+	@ExceptionHandler(PatientNotFoundException.class)
+	ProblemDetail handlePatientNotFound(PatientNotFoundException ex) {
+		return problem(HttpStatus.NOT_FOUND, "Paciente no encontrado",
+				"No existe un paciente con id " + ex.patientId() + ".");
+	}
+
+	@ExceptionHandler(InvalidStatusTransitionException.class)
+	ProblemDetail handleInvalidStatusTransition(InvalidStatusTransitionException ex) {
+		String from = ContractMapper.status(ex.from());
+		String to = ContractMapper.status(ex.to());
+		String detail = ex.from() == ex.to()
+				? "No se puede pasar de " + from + " a " + to + ": el paciente ya está en ese estado."
+				: "No se puede pasar de " + from + " a " + to + ".";
+		return problem(HttpStatus.CONFLICT, "Transición de estado no permitida", detail);
+	}
+
+	@ExceptionHandler(ConcurrentPatientUpdateException.class)
+	ProblemDetail handleConcurrentUpdate(ConcurrentPatientUpdateException ex) {
+		return problem(HttpStatus.CONFLICT, "Modificación concurrente",
+				"El paciente fue modificado por otra solicitud; consúltalo de nuevo y reintenta.");
+	}
+
+	private static ProblemDetail problem(HttpStatus status, String title, String detail) {
+		ProblemDetail problem = ProblemDetail.forStatusAndDetail(status, detail);
+		problem.setTitle(title);
+		return problem;
+	}
+
+	private static String pathVariableName(MethodParameter parameter) {
+		PathVariable pathVariable = parameter.getParameterAnnotation(PathVariable.class);
+		if (pathVariable != null && !pathVariable.value().isEmpty()) {
+			return pathVariable.value();
+		}
+		return parameter.getParameterName();
 	}
 
 	private static Mono<ResponseEntity<Object>> badRequest(String detail, List<InvalidField> errors) {
@@ -87,6 +139,9 @@ class ApiExceptionHandler extends ResponseEntityExceptionHandler {
 		}
 		if (targetType == BigDecimal.class) {
 			return "debe ser un número";
+		}
+		if (targetType == UUID.class) {
+			return "debe ser un UUID válido";
 		}
 		if (targetType == String.class) {
 			return "debe ser un texto";
