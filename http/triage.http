@@ -84,3 +84,15 @@ GET {{baseUrl}}/triage/pacientes/00000000-0000-0000-0000-000000000000
 #    The topic triaje.eventos gets one paciente_escalado with key = patientId; later cycles do not repeat it.
 # 4. PATCH to EN_CONSULTA (RF-02 request above) still works and keeps escalado = true.
 GET {{baseUrl}}/triage/pacientes/{{patientId}}
+
+### RF-05 — Operation report for one UTC day (expected: 200, 24 elements in horas, empty hours in 0 / null)
+GET {{baseUrl}}/triage/reportes/operacion?desde=2026-11-13T00:00:00Z&hasta=2026-11-14T00:00:00Z
+
+### RF-05 — Same day grouped by Bogotá local hour (expected: 200, hora like 2026-11-13T00:00:00-05:00)
+# A positive offset must be URL-encoded: +01:00 → %2B01:00
+GET {{baseUrl}}/triage/reportes/operacion?desde=2026-11-13T00:00:00-05:00&hasta=2026-11-14T00:00:00-05:00&zonaHoraria=America/Bogota
+
+### RF-05 — Invalid parameters (expected: 400, errors for desde (missing), hasta (format) and zonaHoraria)
+GET {{baseUrl}}/triage/reportes/operacion?hasta=2026-11-14&zonaHoraria=Mars/Base
+
+
