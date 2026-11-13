@@ -3,7 +3,8 @@
     "deny": [
       "Read(./.env)",
       "Read(./.env.local)",
-      "Bash(git push:*)"
+      "Bash(git push:*)",
+      "Read(./http/http-client.private.env.json)"
     ]
   }
 }

@@ -2,6 +2,8 @@
 .env
 .env.*
 !.env.example
+# IntelliJ HTTP Client private environment (API keys); http/http-client.env.json has no secrets
+http-client.private.env.json
 
 # Claude Code (personal)
 CLAUDE.local.md

@@ -1,11 +1,27 @@
 ### Triage service — manual examples (IntelliJ HTTP Client)
 # Run the service (docker compose up -d postgres kafka redis, then the app) and execute the requests in order:
 # the registration stores the new patient id in {{patientId}} for the following requests.
+#
+# API key: select the "local" environment and put the real key (TRIAGE_API_KEY of your .env) in
+# http/http-client.private.env.json, which is git-ignored:
+#   { "local": { "triageApiKey": "<TRIAGE_API_KEY>", "assistantApiKey": "<ASSISTANT_API_KEY>" } }
 
 @baseUrl = http://localhost:8080
 
+### Security — no X-API-Key (expected: 401 ProblemDetail "No autenticado", "Falta el header X-API-Key.")
+GET {{baseUrl}}/triage/pacientes/00000000-0000-0000-0000-000000000000
+
+### Health — readiness probe, public (expected: 200 {"status":"UP"} while PostgreSQL answers)
+GET {{baseUrl}}/actuator/health/readiness
+
+### Metrics — Prometheus, protected (expected: 200 with triage_classifications_total and triage_escalations_total)
+GET {{baseUrl}}/actuator/prometheus
+X-API-Key: {{triageApiKey}}
+
+
 ### RF-01 — Register example E1 (expected: 201, nivel CRITICO, slaMinutos 5)
 POST {{baseUrl}}/triage/pacientes
+X-API-Key: {{triageApiKey}}
 Content-Type: application/json
 
 {
@@ -27,9 +43,11 @@ Content-Type: application/json
 
 ### RF-02 — Get the patient (expected: 200, estado REGISTRADO, tiempoEnEstadoActual like PT1M5S)
 GET {{baseUrl}}/triage/pacientes/{{patientId}}
+X-API-Key: {{triageApiKey}}
 
 ### RF-02 — Start the consultation (expected: 200, estado EN_CONSULTA)
 PATCH {{baseUrl}}/triage/pacientes/{{patientId}}/estado
+X-API-Key: {{triageApiKey}}
 Content-Type: application/json
 
 {
@@ -38,6 +56,7 @@ Content-Type: application/json
 
 ### RF-02 — Same status again (expected: 409, "No se puede pasar de EN_CONSULTA a EN_CONSULTA: ...")
 PATCH {{baseUrl}}/triage/pacientes/{{patientId}}/estado
+X-API-Key: {{triageApiKey}}
 Content-Type: application/json
 
 {
@@ -46,6 +65,7 @@ Content-Type: application/json
 
 ### RF-02 — Discharge (expected: 200, estado ALTA)
 PATCH {{baseUrl}}/triage/pacientes/{{patientId}}/estado
+X-API-Key: {{triageApiKey}}
 Content-Type: application/json
 
 {
@@ -54,6 +74,7 @@ Content-Type: application/json
 
 ### RF-02 — Invalid transition (expected: 409, "No se puede pasar de ALTA a EN_CONSULTA.")
 PATCH {{baseUrl}}/triage/pacientes/{{patientId}}/estado
+X-API-Key: {{triageApiKey}}
 Content-Type: application/json
 
 {
@@ -62,6 +83,7 @@ Content-Type: application/json
 
 ### RF-02 — Unknown status value (expected: 400, errors[0].campo = estado)
 PATCH {{baseUrl}}/triage/pacientes/{{patientId}}/estado
+X-API-Key: {{triageApiKey}}
 Content-Type: application/json
 
 {
@@ -70,9 +92,11 @@ Content-Type: application/json
 
 ### RF-02 — Id that is not a UUID (expected: 400, errors[0].campo = id)
 GET {{baseUrl}}/triage/pacientes/abc
+X-API-Key: {{triageApiKey}}
 
 ### RF-02 — Unknown patient (expected: 404, "Paciente no encontrado")
 GET {{baseUrl}}/triage/pacientes/00000000-0000-0000-0000-000000000000
+X-API-Key: {{triageApiKey}}
 
 ### RF-03 — Manual escalation test
 # Start the service with a 1-minute CRITICO SLA and a short evaluation interval, e.g. from the repo root:
@@ -84,20 +108,25 @@ GET {{baseUrl}}/triage/pacientes/00000000-0000-0000-0000-000000000000
 #    The topic triaje.eventos gets one paciente_escalado with key = patientId; later cycles do not repeat it.
 # 4. PATCH to EN_CONSULTA (RF-02 request above) still works and keeps escalado = true.
 GET {{baseUrl}}/triage/pacientes/{{patientId}}
+X-API-Key: {{triageApiKey}}
 
 ### RF-05 — Operation report for one UTC day (expected: 200, 24 elements in horas, empty hours in 0 / null)
 GET {{baseUrl}}/triage/reportes/operacion?desde=2026-11-13T00:00:00Z&hasta=2026-11-14T00:00:00Z
+X-API-Key: {{triageApiKey}}
 
 ### RF-05 — Same day grouped by Bogotá local hour (expected: 200, hora like 2026-11-13T00:00:00-05:00)
 # A positive offset must be URL-encoded: +01:00 → %2B01:00
 GET {{baseUrl}}/triage/reportes/operacion?desde=2026-11-13T00:00:00-05:00&hasta=2026-11-14T00:00:00-05:00&zonaHoraria=America/Bogota
+X-API-Key: {{triageApiKey}}
 
 ### RF-05 — Invalid parameters (expected: 400, errors for desde (missing), hasta (format) and zonaHoraria)
 GET {{baseUrl}}/triage/reportes/operacion?hasta=2026-11-14&zonaHoraria=Mars/Base
+X-API-Key: {{triageApiKey}}
 
 
 ### E2 - esperado URGENTE
-POST http://localhost:8080/triage/pacientes
+POST {{baseUrl}}/triage/pacientes
+X-API-Key: {{triageApiKey}}
 Content-Type: application/json
 
 {
@@ -114,7 +143,8 @@ Content-Type: application/json
 }
 
 ### E3 - esperado URGENTE_2
-POST http://localhost:8080/triage/pacientes
+POST {{baseUrl}}/triage/pacientes
+X-API-Key: {{triageApiKey}}
 Content-Type: application/json
 
 {
@@ -131,7 +161,8 @@ Content-Type: application/json
 }
 
 ### E4 - esperado NO_URGENTE
-POST http://localhost:8080/triage/pacientes
+POST {{baseUrl}}/triage/pacientes
+X-API-Key: {{triageApiKey}}
 Content-Type: application/json
 
 {
@@ -148,7 +179,8 @@ Content-Type: application/json
 }
 
 ### E5 - esperado NO_URGENTE_2
-POST http://localhost:8080/triage/pacientes
+POST {{baseUrl}}/triage/pacientes
+X-API-Key: {{triageApiKey}}
 Content-Type: application/json
 
 {
@@ -165,7 +197,8 @@ Content-Type: application/json
 }
 
 ### E6 - esperado CRITICO
-POST http://localhost:8080/triage/pacientes
+POST {{baseUrl}}/triage/pacientes
+X-API-Key: {{triageApiKey}}
 Content-Type: application/json
 
 {

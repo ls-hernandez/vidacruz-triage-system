@@ -1,8 +1,23 @@
 ### Assistant service — manual examples (IntelliJ HTTP Client)
 # Run the infrastructure (docker compose up -d postgres kafka redis), triage-service and assistant-service.
 # Register / change patients with http/triage.http: the assistant rebuilds its view only from triaje.eventos.
+#
+# API key: select the "local" environment and put the real key (ASSISTANT_API_KEY of your .env) in
+# http/http-client.private.env.json, which is git-ignored:
+#   { "local": { "triageApiKey": "<TRIAGE_API_KEY>", "assistantApiKey": "<ASSISTANT_API_KEY>" } }
 
 @assistantUrl = http://localhost:8081
+
+### Security — no X-API-Key (expected: 401 ProblemDetail "No autenticado", "Falta el header X-API-Key.")
+GET {{assistantUrl}}/asistente/estado-urgencias
+
+### Health — readiness probe, public (expected: 200 {"status":"UP"} while Redis answers; never depends on the LLM)
+GET {{assistantUrl}}/actuator/health/readiness
+
+### Metrics — Prometheus, protected (expected: 200 with assistant_llm_latency_seconds{operation,outcome})
+GET {{assistantUrl}}/actuator/prometheus
+X-API-Key: {{assistantApiKey}}
+
 
 ### RF-04 B — Live emergency-room status (expected: 200; the 5 levels are always present, EN_CONSULTA counts as active)
 # {
@@ -11,10 +26,12 @@
 # }
 # After PATCH .../estado {"estado": "ALTA"} on a patient, its level count drops by one within a moment.
 GET {{assistantUrl}}/asistente/estado-urgencias
+X-API-Key: {{assistantApiKey}}
 
 ### RF-04 A — Example 1: hypertensive crisis (expected: 200, fuentes contains {"protocolo": "PROTO-001", "seccion": "Medidas iniciales"})
 # 503 "El asistente clínico no está disponible..." if OPENAI_API_KEY is missing or the corpus is still being indexed.
 POST {{assistantUrl}}/asistente/consulta
+X-API-Key: {{assistantApiKey}}
 Content-Type: application/json
 
 {
@@ -23,6 +40,7 @@ Content-Type: application/json
 
 ### RF-04 A — Example 2: sepsis (expected: 200, fuentes contains {"protocolo": "PROTO-002", "seccion": "Acciones iniciales"})
 POST {{assistantUrl}}/asistente/consulta
+X-API-Key: {{assistantApiKey}}
 Content-Type: application/json
 
 {
@@ -31,6 +49,7 @@ Content-Type: application/json
 
 ### RF-04 A — Example 3: not in the corpus (expected: 200, "No existe un protocolo disponible en el corpus para esta pregunta.", fuentes [])
 POST {{assistantUrl}}/asistente/consulta
+X-API-Key: {{assistantApiKey}}
 Content-Type: application/json
 
 {
@@ -39,6 +58,7 @@ Content-Type: application/json
 
 ### RF-04 A — Blank question (expected: 400, errors[0].campo = pregunta)
 POST {{assistantUrl}}/asistente/consulta
+X-API-Key: {{assistantApiKey}}
 Content-Type: application/json
 
 {
