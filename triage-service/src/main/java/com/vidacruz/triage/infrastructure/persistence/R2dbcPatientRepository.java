@@ -2,7 +2,13 @@ package com.vidacruz.triage.infrastructure.persistence;
 
 import com.vidacruz.triage.application.port.PatientRepository;
 import com.vidacruz.triage.domain.Patient;
+import com.vidacruz.triage.domain.PatientStatus;
+import com.vidacruz.triage.domain.TriageLevel;
 import com.vidacruz.triage.domain.VitalSigns;
+import io.r2dbc.spi.Readable;
+import java.math.BigDecimal;
+import java.time.Instant;
+import java.util.UUID;
 import org.springframework.r2dbc.core.DatabaseClient;
 import org.springframework.stereotype.Repository;
 import reactor.core.publisher.Mono;
@@ -26,10 +32,10 @@ class R2dbcPatientRepository implements PatientRepository {
 		return db.sql("""
 				INSERT INTO patients (id, full_name, age, heart_rate, systolic_bp, diastolic_bp, spo2, temperature,
 				                      pain_level, gcs, chief_complaint, level, sla_minutes, status, escalated,
-				                      registered_at, status_changed_at)
+				                      registered_at, status_changed_at, version)
 				VALUES (:id, :fullName, :age, :heartRate, :systolic, :diastolic, :spo2, :temperature,
 				        :pain, :gcs, :chiefComplaint, :level, :slaMinutes, :status, :escalated,
-				        :registeredAt, :statusChangedAt)
+				        :registeredAt, :statusChangedAt, :version)
 				""")
 			.bind("id", patient.id())
 			.bind("fullName", patient.fullName())
@@ -48,7 +54,63 @@ class R2dbcPatientRepository implements PatientRepository {
 			.bind("escalated", patient.escalated())
 			.bind("registeredAt", patient.registeredAt())
 			.bind("statusChangedAt", patient.statusChangedAt())
+			.bind("version", patient.version())
 			.then();
+	}
+
+	@Override
+	public Mono<Patient> findById(UUID id) {
+		return db.sql("SELECT * FROM patients WHERE id = :id")
+			.bind("id", id)
+			.map(R2dbcPatientRepository::toPatient)
+			.one();
+	}
+
+	/**
+	 * Only {@code status}, {@code status_changed_at} and {@code version} are written: {@code escalated} and
+	 * {@code escalated_at} stay as they are in the row, so a concurrent escalation (RF-03) is preserved and returned.
+	 */
+	@Override
+	public Mono<Patient> updateStatus(UUID id, PatientStatus expectedStatus, long expectedVersion,
+			PatientStatus newStatus, Instant changedAt) {
+		return db.sql("""
+				UPDATE patients
+				SET status = :newStatus, status_changed_at = :changedAt, version = version + 1
+				WHERE id = :id AND status = :expectedStatus AND version = :expectedVersion
+				RETURNING *
+				""")
+			.bind("newStatus", newStatus.name())
+			.bind("changedAt", changedAt)
+			.bind("id", id)
+			.bind("expectedStatus", expectedStatus.name())
+			.bind("expectedVersion", expectedVersion)
+			.map(R2dbcPatientRepository::toPatient)
+			.one();
+	}
+
+	private static Patient toPatient(Readable row) {
+		VitalSigns vitalSigns = new VitalSigns(
+				row.get("heart_rate", Integer.class),
+				row.get("systolic_bp", Integer.class),
+				row.get("diastolic_bp", Integer.class),
+				row.get("spo2", Integer.class),
+				row.get("temperature", BigDecimal.class),
+				row.get("gcs", Integer.class),
+				row.get("pain_level", Integer.class));
+		return new Patient(
+				row.get("id", UUID.class),
+				row.get("full_name", String.class),
+				row.get("age", Integer.class),
+				vitalSigns,
+				row.get("chief_complaint", String.class),
+				TriageLevel.valueOf(row.get("level", String.class)),
+				row.get("sla_minutes", Integer.class),
+				PatientStatus.valueOf(row.get("status", String.class)),
+				Boolean.TRUE.equals(row.get("escalated", Boolean.class)),
+				row.get("escalated_at", Instant.class),
+				row.get("registered_at", Instant.class),
+				row.get("status_changed_at", Instant.class),
+				row.get("version", Long.class));
 	}
 
 }

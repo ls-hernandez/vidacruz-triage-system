@@ -1,5 +1,7 @@
 package com.vidacruz.triage.infrastructure.config;
 
+import com.vidacruz.triage.application.ChangePatientStatus;
+import com.vidacruz.triage.application.GetPatient;
 import com.vidacruz.triage.application.RegisterPatient;
 import com.vidacruz.triage.application.port.AuditRepository;
 import com.vidacruz.triage.application.port.PatientEventPublisher;
@@ -29,6 +31,17 @@ public class TriageBeans {
 	RegisterPatient registerPatient(TriageClassifier classifier, SlaPolicy slaPolicy, PatientRepository patients,
 			AuditRepository audit, TransactionRunner transactions, PatientEventPublisher publisher, Clock clock) {
 		return new RegisterPatient(classifier, slaPolicy, patients, audit, transactions, publisher, clock);
+	}
+
+	@Bean
+	GetPatient getPatient(PatientRepository patients, Clock clock) {
+		return new GetPatient(patients, clock);
+	}
+
+	@Bean
+	ChangePatientStatus changePatientStatus(PatientRepository patients, AuditRepository audit,
+			TransactionRunner transactions, PatientEventPublisher publisher, Clock clock) {
+		return new ChangePatientStatus(patients, audit, transactions, publisher, clock);
 	}
 
 }

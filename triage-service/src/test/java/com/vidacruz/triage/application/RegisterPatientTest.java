@@ -20,6 +20,7 @@ import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import reactor.core.publisher.Mono;
 import reactor.test.StepVerifier;
@@ -41,11 +42,27 @@ class RegisterPatientTest {
 	private Mono<Void> publishResult = Mono.empty();
 	private Mono<Void> insertResult = Mono.empty();
 
-	private final PatientRepository patients = patient -> Mono.defer(() -> {
-		calls.add("insert");
-		savedPatients.add(patient);
-		return insertResult;
-	});
+	private final PatientRepository patients = new PatientRepository() {
+		@Override
+		public Mono<Void> insert(Patient patient) {
+			return Mono.defer(() -> {
+				calls.add("insert");
+				savedPatients.add(patient);
+				return insertResult;
+			});
+		}
+
+		@Override
+		public Mono<Patient> findById(UUID id) {
+			throw new UnsupportedOperationException();
+		}
+
+		@Override
+		public Mono<Patient> updateStatus(UUID id, PatientStatus expectedStatus, long expectedVersion,
+				PatientStatus newStatus, Instant changedAt) {
+			throw new UnsupportedOperationException();
+		}
+	};
 
 	private final AuditRepository audit = entry -> Mono.fromRunnable(() -> {
 		calls.add("audit");
