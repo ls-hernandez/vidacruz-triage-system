@@ -1,0 +1,20 @@
+# Only poms, the Maven Wrapper and the module sources are needed to build the images
+**/target/
+.git/
+.gitignore
+.gitattributes
+# Secrets: never in the build context
+.env
+.env.*
+http/
+docs/
+# IDE and tooling
+.idea/
+*.iml
+.vscode/
+.claude/
+CLAUDE*.md
+.mvn/wrapper/maven-wrapper.jar
+docker-compose.yml
+**/Dockerfile
+.dockerignore
