@@ -2,9 +2,11 @@ package com.vidacruz.triage.infrastructure.config;
 
 import com.vidacruz.triage.application.ChangePatientStatus;
 import com.vidacruz.triage.application.EscalateOverduePatients;
+import com.vidacruz.triage.application.GetOperationReport;
 import com.vidacruz.triage.application.GetPatient;
 import com.vidacruz.triage.application.RegisterPatient;
 import com.vidacruz.triage.application.port.AuditRepository;
+import com.vidacruz.triage.application.port.OperationReportRepository;
 import com.vidacruz.triage.application.port.PatientEventPublisher;
 import com.vidacruz.triage.application.port.PatientRepository;
 import com.vidacruz.triage.application.port.SlaPolicy;
@@ -37,6 +39,11 @@ public class TriageBeans {
 	@Bean
 	GetPatient getPatient(PatientRepository patients, Clock clock) {
 		return new GetPatient(patients, clock);
+	}
+
+	@Bean
+	GetOperationReport getOperationReport(OperationReportRepository reports) {
+		return new GetOperationReport(reports);
 	}
 
 	@Bean
