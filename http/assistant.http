@@ -11,3 +11,36 @@
 # }
 # After PATCH .../estado {"estado": "ALTA"} on a patient, its level count drops by one within a moment.
 GET {{assistantUrl}}/asistente/estado-urgencias
+
+### RF-04 A — Example 1: hypertensive crisis (expected: 200, fuentes contains {"protocolo": "PROTO-001", "seccion": "Medidas iniciales"})
+# 503 "El asistente clínico no está disponible..." if OPENAI_API_KEY is missing or the corpus is still being indexed.
+POST {{assistantUrl}}/asistente/consulta
+Content-Type: application/json
+
+{
+  "pregunta": "¿Cuáles son las medidas iniciales ante una crisis hipertensiva?"
+}
+
+### RF-04 A — Example 2: sepsis (expected: 200, fuentes contains {"protocolo": "PROTO-002", "seccion": "Acciones iniciales"})
+POST {{assistantUrl}}/asistente/consulta
+Content-Type: application/json
+
+{
+  "pregunta": "¿Cuándo se administra el primer antibiótico en sepsis?"
+}
+
+### RF-04 A — Example 3: not in the corpus (expected: 200, "No existe un protocolo disponible en el corpus para esta pregunta.", fuentes [])
+POST {{assistantUrl}}/asistente/consulta
+Content-Type: application/json
+
+{
+  "pregunta": "¿Cuál es el tratamiento de primera línea para la diabetes tipo 2?"
+}
+
+### RF-04 A — Blank question (expected: 400, errors[0].campo = pregunta)
+POST {{assistantUrl}}/asistente/consulta
+Content-Type: application/json
+
+{
+  "pregunta": "   "
+}
