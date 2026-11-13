@@ -1,0 +1,13 @@
+### Assistant service — manual examples (IntelliJ HTTP Client)
+# Run the infrastructure (docker compose up -d postgres kafka redis), triage-service and assistant-service.
+# Register / change patients with http/triage.http: the assistant rebuilds its view only from triaje.eventos.
+
+@assistantUrl = http://localhost:8081
+
+### RF-04 B — Live emergency-room status (expected: 200; the 5 levels are always present, EN_CONSULTA counts as active)
+# {
+#   "totalActivos": 3,
+#   "porNivel": { "CRITICO": 1, "URGENTE": 1, "URGENTE_2": 0, "NO_URGENTE": 1, "NO_URGENTE_2": 0 }
+# }
+# After PATCH .../estado {"estado": "ALTA"} on a patient, its level count drops by one within a moment.
+GET {{assistantUrl}}/asistente/estado-urgencias
