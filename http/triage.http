@@ -1,0 +1,75 @@
+### Triage service — manual examples (IntelliJ HTTP Client)
+# Run the service (docker compose up -d postgres kafka redis, then the app) and execute the requests in order:
+# the registration stores the new patient id in {{patientId}} for the following requests.
+
+@baseUrl = http://localhost:8080
+
+### RF-01 — Register example E1 (expected: 201, nivel CRITICO, slaMinutos 5)
+POST {{baseUrl}}/triage/pacientes
+Content-Type: application/json
+
+{
+  "nombreCompleto": "Ana Pérez",
+  "edad": 45,
+  "frecuenciaCardiaca": 130,
+  "presionSistolica": 180,
+  "presionDiastolica": 110,
+  "spo2": 97,
+  "temperatura": 36.8,
+  "dolor": 8,
+  "gcs": 15,
+  "quejaPrincipal": "Dolor torácico"
+}
+
+> {%
+    client.global.set("patientId", response.body.id);
+%}
+
+### RF-02 — Get the patient (expected: 200, estado REGISTRADO, tiempoEnEstadoActual like PT1M5S)
+GET {{baseUrl}}/triage/pacientes/{{patientId}}
+
+### RF-02 — Start the consultation (expected: 200, estado EN_CONSULTA)
+PATCH {{baseUrl}}/triage/pacientes/{{patientId}}/estado
+Content-Type: application/json
+
+{
+  "estado": "EN_CONSULTA"
+}
+
+### RF-02 — Same status again (expected: 409, "No se puede pasar de EN_CONSULTA a EN_CONSULTA: ...")
+PATCH {{baseUrl}}/triage/pacientes/{{patientId}}/estado
+Content-Type: application/json
+
+{
+  "estado": "EN_CONSULTA"
+}
+
+### RF-02 — Discharge (expected: 200, estado ALTA)
+PATCH {{baseUrl}}/triage/pacientes/{{patientId}}/estado
+Content-Type: application/json
+
+{
+  "estado": "ALTA"
+}
+
+### RF-02 — Invalid transition (expected: 409, "No se puede pasar de ALTA a EN_CONSULTA.")
+PATCH {{baseUrl}}/triage/pacientes/{{patientId}}/estado
+Content-Type: application/json
+
+{
+  "estado": "EN_CONSULTA"
+}
+
+### RF-02 — Unknown status value (expected: 400, errors[0].campo = estado)
+PATCH {{baseUrl}}/triage/pacientes/{{patientId}}/estado
+Content-Type: application/json
+
+{
+  "estado": "CERRADO"
+}
+
+### RF-02 — Id that is not a UUID (expected: 400, errors[0].campo = id)
+GET {{baseUrl}}/triage/pacientes/abc
+
+### RF-02 — Unknown patient (expected: 404, "Paciente no encontrado")
+GET {{baseUrl}}/triage/pacientes/00000000-0000-0000-0000-000000000000
