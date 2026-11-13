@@ -24,6 +24,7 @@ import java.util.List;
 import java.util.UUID;
 import java.util.function.UnaryOperator;
 import org.junit.jupiter.api.Test;
+import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.test.StepVerifier;
 
@@ -70,6 +71,16 @@ class ChangePatientStatusTest {
 						stored.escalatedAt(), stored.registeredAt(), changedAt, stored.version() + 1);
 				return Mono.justOrEmpty(rowAfterUpdate.apply(updated));
 			});
+		}
+
+		@Override
+		public Flux<UUID> findOverdueIds(Instant now) {
+			throw new UnsupportedOperationException();
+		}
+
+		@Override
+		public Mono<Patient> markEscalated(UUID id, Instant escalatedAt) {
+			throw new UnsupportedOperationException();
 		}
 	};
 

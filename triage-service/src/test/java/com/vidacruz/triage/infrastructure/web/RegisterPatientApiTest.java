@@ -37,7 +37,8 @@ import reactor.test.StepVerifier;
 /**
  * RF-01 end to end: HTTP → PostgreSQL → Kafka, with real containers.
  */
-@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
+@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
+		properties = "triage.escalation.enabled=false")
 @AutoConfigureWebTestClient
 @Import(TestcontainersConfiguration.class)
 class RegisterPatientApiTest {

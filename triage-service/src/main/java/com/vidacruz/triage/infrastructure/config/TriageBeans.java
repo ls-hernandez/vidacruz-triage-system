@@ -1,6 +1,7 @@
 package com.vidacruz.triage.infrastructure.config;
 
 import com.vidacruz.triage.application.ChangePatientStatus;
+import com.vidacruz.triage.application.EscalateOverduePatients;
 import com.vidacruz.triage.application.GetPatient;
 import com.vidacruz.triage.application.RegisterPatient;
 import com.vidacruz.triage.application.port.AuditRepository;
@@ -42,6 +43,13 @@ public class TriageBeans {
 	ChangePatientStatus changePatientStatus(PatientRepository patients, AuditRepository audit,
 			TransactionRunner transactions, PatientEventPublisher publisher, Clock clock) {
 		return new ChangePatientStatus(patients, audit, transactions, publisher, clock);
+	}
+
+	@Bean
+	EscalateOverduePatients escalateOverduePatients(PatientRepository patients, AuditRepository audit,
+			TransactionRunner transactions, PatientEventPublisher publisher, Clock clock,
+			EscalationProperties properties) {
+		return new EscalateOverduePatients(patients, audit, transactions, publisher, clock, properties.concurrency());
 	}
 
 }

@@ -37,12 +37,20 @@ spring:
 
 triage:
   # SLA per level in minutes (RN-02); captured on each patient at registration
+  # Overridable by environment (e.g. TRIAGE_SLA_CRITICAL=1) to test the escalation without waiting
   sla:
-    critical: 5
-    urgent: 10
-    urgent-2: 30
-    non-urgent: 60
-    non-urgent-2: 120
+    critical: ${TRIAGE_SLA_CRITICAL:5}
+    urgent: ${TRIAGE_SLA_URGENT:10}
+    urgent-2: ${TRIAGE_SLA_URGENT_2:30}
+    non-urgent: ${TRIAGE_SLA_NON_URGENT:60}
+    non-urgent-2: ${TRIAGE_SLA_NON_URGENT_2:120}
+  # RF-03: background SLA escalation
+  escalation:
+    enabled: ${TRIAGE_ESCALATION_ENABLED:true}
+    # Delay between the end of one cycle and the start of the next (ISO 8601)
+    interval: ${TRIAGE_ESCALATION_INTERVAL:PT30S}
+    # Patients escalated in parallel per cycle; below the R2DBC pool size (10 by default)
+    concurrency: 4
   events:
     topic: triaje.eventos
     partitions: 3

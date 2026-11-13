@@ -42,13 +42,15 @@ import org.springframework.http.MediaType;
 import org.springframework.r2dbc.core.DatabaseClient;
 import org.springframework.test.web.reactive.server.WebTestClient;
 import org.testcontainers.kafka.KafkaContainer;
+import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.test.StepVerifier;
 
 /**
  * RF-02 end to end: status changes (PATCH) and patient details (GET) over HTTP → PostgreSQL → Kafka.
  */
-@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
+@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
+		properties = "triage.escalation.enabled=false")
 @AutoConfigureWebTestClient
 @Import(TestcontainersConfiguration.class)
 class PatientStatusApiTest {
@@ -184,6 +186,16 @@ class PatientStatusApiTest {
 			public Mono<Patient> updateStatus(UUID id, PatientStatus expectedStatus, long expectedVersion,
 					PatientStatus newStatus, Instant changedAt) {
 				return patientRepository.updateStatus(id, expectedStatus, expectedVersion, newStatus, changedAt);
+			}
+
+			@Override
+			public Flux<UUID> findOverdueIds(Instant now) {
+				return patientRepository.findOverdueIds(now);
+			}
+
+			@Override
+			public Mono<Patient> markEscalated(UUID id, Instant escalatedAt) {
+				return patientRepository.markEscalated(id, escalatedAt);
 			}
 		};
 		return new ChangePatientStatus(staleReads, auditRepository, transactions, eventPublisher, Clock.systemUTC());

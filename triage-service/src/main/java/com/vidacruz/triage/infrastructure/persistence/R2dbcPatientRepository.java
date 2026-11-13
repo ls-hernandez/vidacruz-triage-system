@@ -11,6 +11,7 @@ import java.time.Instant;
 import java.util.UUID;
 import org.springframework.r2dbc.core.DatabaseClient;
 import org.springframework.stereotype.Repository;
+import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 /**
@@ -84,6 +85,38 @@ class R2dbcPatientRepository implements PatientRepository {
 			.bind("id", id)
 			.bind("expectedStatus", expectedStatus.name())
 			.bind("expectedVersion", expectedVersion)
+			.map(R2dbcPatientRepository::toPatient)
+			.one();
+	}
+
+	/** Strict comparison ({@code <}) as in {@link Patient#isOverdueAt}; served by the partial index of V1. */
+	@Override
+	public Flux<UUID> findOverdueIds(Instant now) {
+		return db.sql("""
+				SELECT id FROM patients
+				WHERE status = 'REGISTERED' AND escalated = false
+				  AND registered_at + make_interval(mins => sla_minutes) < :now
+				ORDER BY registered_at
+				""")
+			.bind("now", now)
+			.map(row -> row.get("id", UUID.class))
+			.all();
+	}
+
+	/**
+	 * The {@code WHERE} is the idempotency guard (RN-03): if two replicas (or a status change) race, the second
+	 * statement waits for the row lock, re-evaluates the condition on the committed row and updates nothing.
+	 */
+	@Override
+	public Mono<Patient> markEscalated(UUID id, Instant escalatedAt) {
+		return db.sql("""
+				UPDATE patients
+				SET escalated = true, escalated_at = :escalatedAt
+				WHERE id = :id AND status = 'REGISTERED' AND escalated = false
+				RETURNING *
+				""")
+			.bind("escalatedAt", escalatedAt)
+			.bind("id", id)
 			.map(R2dbcPatientRepository::toPatient)
 			.one();
 	}

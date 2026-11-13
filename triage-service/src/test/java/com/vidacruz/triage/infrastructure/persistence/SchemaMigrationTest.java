@@ -21,7 +21,7 @@ import reactor.test.StepVerifier;
  * Verifies the Flyway schema against a real PostgreSQL: constraints that back the business rules
  * and the append-only audit trail (RN-04).
  */
-@SpringBootTest
+@SpringBootTest(properties = "triage.escalation.enabled=false")
 @Import(TestcontainersConfiguration.class)
 class SchemaMigrationTest {
 
