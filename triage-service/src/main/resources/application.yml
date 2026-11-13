@@ -18,6 +18,35 @@ spring:
     password: ${POSTGRES_PASSWORD}
   kafka:
     bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    producer:
+      # Events are serialized to JSON by the publisher: no Java type headers on the wire
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.StringSerializer
+      acks: all
+      properties:
+        # Bound how long a registration waits when Kafka is down (defaults: 60 s blocking + 120 s delivery)
+        max.block.ms: 5000
+        request.timeout.ms: 5000
+        delivery.timeout.ms: 10000
+  jackson:
+    # Strict JSON input: 72.5 or "72" in an integer field is a 400, not a silent 72
+    deserialization:
+      accept-float-as-int: false
+    mapper:
+      allow-coercion-of-scalars: false
+
+triage:
+  # SLA per level in minutes (RN-02); captured on each patient at registration
+  sla:
+    critical: 5
+    urgent: 10
+    urgent-2: 30
+    non-urgent: 60
+    non-urgent-2: 120
+  events:
+    topic: triaje.eventos
+    partitions: 3
+    replicas: 1
 
 server:
   port: ${TRIAGE_SERVER_PORT:8080}
