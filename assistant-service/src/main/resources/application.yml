@@ -28,10 +28,67 @@ spring:
       # Spring AI rejects an empty key at startup. The placeholder lets the service start without a key;
       # LLM calls then fail and will be turned into 503 by the circuit breaker (see docs/assumptions.md).
       api-key: ${OPENAI_API_KEY:not-configured}
+      chat:
+        options:
+          model: ${OPENAI_CHAT_MODEL:gpt-4o-mini}
+          # RF-04 A: deterministic answers, only from the retrieved protocol fragments
+          temperature: 0
+      embedding:
+        options:
+          model: ${OPENAI_EMBEDDING_MODEL:text-embedding-3-small}
+    retry:
+      # Spring AI retries 10 times with backoff by default; resilience is handled by Resilience4j instead
+      # (circuit breaker + time limit), so a single attempt here keeps timeouts and failure counts meaningful.
+      max-attempts: 1
+  jackson:
+    # Strict JSON input, as in the triage service: "pregunta": 123 is a 400, not "123"
+    mapper:
+      allow-coercion-of-scalars: false
 
 assistant:
   events:
     topic: triaje.eventos
+  # RF-04 A: retrieval-augmented answers over the protocol corpus (see docs/assumptions.md 27-32)
+  rag:
+    corpus: classpath:corpus/protocols.json
+    top-k: ${ASSISTANT_RAG_TOP_K:3}
+    # Minimum cosine similarity for a fragment to be relevant. Calibrated for text-embedding-3-small with
+    # RagThresholdCalibrationTest: midpoint between the best off-corpus score (0.39) and the lowest correct
+    # section (0.60). Recalibrate if the embedding model or the corpus changes (docs/assumptions.md, 29).
+    similarity-threshold: ${ASSISTANT_RAG_SIMILARITY_THRESHOLD:0.50}
+    ingestion:
+      # Delay between corpus indexing attempts while the provider is unavailable (no key, outage)
+      retry-interval: ${ASSISTANT_RAG_INGESTION_RETRY_INTERVAL:PT30S}
+    http:
+      # Frees the boundedElastic thread blocked on the provider; above the chat time limit
+      connect-timeout: 5s
+      read-timeout: 25s
+
+resilience4j:
+  circuitbreaker:
+    configs:
+      default:
+        sliding-window-type: COUNT_BASED
+        sliding-window-size: 10
+        minimum-number-of-calls: 5
+        failure-rate-threshold: 50
+        wait-duration-in-open-state: 30s
+        permitted-number-of-calls-in-half-open-state: 2
+        automatic-transition-from-open-to-half-open-enabled: false
+    instances:
+      # Question embedding + in-memory similarity search
+      embedding:
+        base-config: default
+      chat:
+        base-config: default
+  timelimiter:
+    instances:
+      embedding:
+        timeout-duration: 5s
+        cancel-running-future: true
+      chat:
+        timeout-duration: 20s
+        cancel-running-future: true
 
 server:
   port: ${ASSISTANT_SERVER_PORT:8081}

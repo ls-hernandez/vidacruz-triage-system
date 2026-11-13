@@ -1,15 +1,19 @@
 package com.vidacruz.assistant;
 
+import com.vidacruz.assistant.support.FakeAiConfiguration;
 import org.apache.kafka.clients.admin.NewTopic;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
 import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Import;
 import org.springframework.kafka.config.TopicBuilder;
 import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.kafka.KafkaContainer;
 import org.testcontainers.utility.DockerImageName;
 
+/** Kafka and Redis containers, the events topic and the AI doubles: shared by every Spring test context. */
 @TestConfiguration(proxyBeanMethods = false)
+@Import(FakeAiConfiguration.class)
 public class TestcontainersConfiguration {
 
 	public static final String EVENTS_TOPIC = "triaje.eventos";
