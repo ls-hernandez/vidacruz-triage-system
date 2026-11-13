@@ -19,6 +19,12 @@ spring:
       properties:
         # The topic (and its partition count) belongs to the triage service: wait for it, never auto-create it
         allow.auto.create.topics: false
+    listener:
+      # Observed listener: reads the W3C traceparent header, so processing shares the traceId of the triage request
+      observation-enabled: true
+  reactor:
+    # Restores the tracing context (MDC traceId/spanId) on every thread hop: boundedElastic, Lettuce, Kafka
+    context-propagation: auto
   data:
     redis:
       host: ${REDIS_HOST:localhost}
@@ -48,6 +54,9 @@ spring:
 assistant:
   events:
     topic: triaje.eventos
+  security:
+    # X-API-Key for every endpoint except /actuator/health/**. No default: startup fails without the variable.
+    api-key: ${ASSISTANT_API_KEY}
   # RF-04 A: retrieval-augmented answers over the protocol corpus (see docs/assumptions.md 27-32)
   rag:
     corpus: classpath:corpus/protocols.json
@@ -97,4 +106,39 @@ management:
   endpoints:
     web:
       exposure:
-        include: health,info
+        include: health,info,prometheus
+  endpoint:
+    health:
+      probes:
+        # /actuator/health/liveness and /actuator/health/readiness, also outside Kubernetes
+        enabled: true
+      group:
+        readiness:
+          # Ready only while Redis answers. Never the LLM nor the RAG index (assumption 32), nor Kafka.
+          include: readinessState,redis
+  tracing:
+    # No exporter (OpenTelemetry export is level 3): spans only provide the traceId/spanId for logs and Kafka headers
+    sampling:
+      probability: 1.0
+  metrics:
+    distribution:
+      # Buckets for p95/p99 of the LLM latency in Prometheus (histogram_quantile)
+      percentiles-histogram:
+        assistant.llm.latency: true
+
+logging:
+  structured:
+    format:
+      # JSON lines (Elastic Common Schema) with traceId and spanId; the "local" profile switches to plain text
+      console: ecs
+
+---
+spring:
+  config:
+    activate:
+      on-profile: local
+logging:
+  structured:
+    format:
+      # Plain text for local runs; Boot's pattern still shows [application,traceId,spanId]
+      console: ""

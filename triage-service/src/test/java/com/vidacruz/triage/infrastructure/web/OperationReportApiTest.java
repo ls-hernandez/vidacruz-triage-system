@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.vidacruz.triage.TestcontainersConfiguration;
+import com.vidacruz.triage.support.ApiKeyTestConfiguration;
 import java.math.BigDecimal;
 import java.time.Duration;
 import java.time.Instant;
@@ -32,7 +33,7 @@ import org.springframework.test.web.reactive.server.WebTestClient;
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
 		properties = "triage.escalation.enabled=false")
 @AutoConfigureWebTestClient
-@Import(TestcontainersConfiguration.class)
+@Import({ TestcontainersConfiguration.class, ApiKeyTestConfiguration.class })
 class OperationReportApiTest {
 
 	private static final String PATH = "/triage/reportes/operacion";

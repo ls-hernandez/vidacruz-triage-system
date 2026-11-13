@@ -8,7 +8,10 @@ import static org.hamcrest.Matchers.hasSize;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.vidacruz.triage.TestcontainersConfiguration;
+import com.vidacruz.triage.infrastructure.metrics.MeteredPatientEventPublisher;
+import com.vidacruz.triage.support.ApiKeyTestConfiguration;
 import com.vidacruz.triage.support.PatientEventsConsumer;
+import io.micrometer.core.instrument.MeterRegistry;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.HashMap;
@@ -40,7 +43,7 @@ import reactor.test.StepVerifier;
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
 		properties = "triage.escalation.enabled=false")
 @AutoConfigureWebTestClient
-@Import(TestcontainersConfiguration.class)
+@Import({ TestcontainersConfiguration.class, ApiKeyTestConfiguration.class })
 class RegisterPatientApiTest {
 
 	private static final String PATH = "/triage/pacientes";
@@ -59,6 +62,9 @@ class RegisterPatientApiTest {
 
 	@Autowired
 	private ObjectMapper objectMapper;
+
+	@Autowired
+	private MeterRegistry meterRegistry;
 
 	/** Example E1 of the challenge (expected level CRITICO). */
 	private static Map<String, Object> e1(Consumer<Map<String, Object>> overrides) {
@@ -79,6 +85,24 @@ class RegisterPatientApiTest {
 
 	private WebTestClient.ResponseSpec post(Object body) {
 		return client.post().uri(PATH).contentType(MediaType.APPLICATION_JSON).bodyValue(body).exchange();
+	}
+
+	private double classifications(String level) {
+		return meterRegistry.get(MeteredPatientEventPublisher.CLASSIFICATIONS).tag("level", level).counter().count();
+	}
+
+	@Test
+	void registrationIncrementsTheClassificationCounterOfItsLevelOnly() {
+		double critical = classifications("CRITICAL");
+		double urgent = classifications("URGENT");
+
+		register(e1(body -> {
+		}));
+		// a rejected request is not a classification
+		expectInvalidField(e1(body -> body.put("edad", -1)), "edad");
+
+		assertThat(classifications("CRITICAL")).isEqualTo(critical + 1);
+		assertThat(classifications("URGENT")).isEqualTo(urgent);
 	}
 
 	private RegisteredPatient register(Map<String, Object> body) {

@@ -23,6 +23,9 @@ import reactor.util.retry.Retry;
  * A message that cannot be understood is logged and skipped, never retried: it would fail the same way forever.
  * Redis failures are retried with backoff (the writes are idempotent); if they persist the event is logged and
  * skipped, and the view can be rebuilt by replaying the topic (assumption 26).
+ * <p>
+ * The listener is observed ({@code spring.kafka.listener.observation-enabled}): the {@code traceparent} header written
+ * by the triage service opens a child span, so the logs of both services share the traceId.
  */
 @Component
 class PatientEventListener {
@@ -54,12 +57,18 @@ class PatientEventListener {
 		}
 		return applyPatientEvent.apply(event)
 			.retryWhen(Retry.backoff(MAX_RETRIES, FIRST_BACKOFF))
+			// runs after Redis answered, on another thread: the traceId of the event is still in the MDC
+			.doOnSuccess(ignored -> log.debug("Applied patient event {} ({}) for patient {}", event.eventId(),
+					event.type(), event.patientId()))
 			.onErrorResume(ex -> {
 				log.error("Could not apply patient event {} (patientId {}) at {}-{}@{} after {} retries; skipped",
 						event.eventId(), event.patientId(), record.topic(), record.partition(), record.offset(),
 						MAX_RETRIES, ex);
 				return Mono.empty();
-			});
+			})
+			// Spring Kafka subscribes with toFuture() while the listener observation is open: capture it into the
+			// Reactor context so the traceId is restored on the Redis client threads (automatic propagation)
+			.contextCapture();
 	}
 
 }

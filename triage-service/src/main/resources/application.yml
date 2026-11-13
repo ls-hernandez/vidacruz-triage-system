@@ -28,6 +28,12 @@ spring:
         max.block.ms: 5000
         request.timeout.ms: 5000
         delivery.timeout.ms: 10000
+    template:
+      # Observed sends: the W3C traceparent header travels with each event, so the assistant shares the traceId
+      observation-enabled: true
+  reactor:
+    # Restores the tracing context (MDC traceId/spanId) on every thread hop: boundedElastic, Kafka producer, R2DBC
+    context-propagation: auto
   jackson:
     # Strict JSON input: 72.5 or "72" in an integer field is a 400, not a silent 72
     deserialization:
@@ -55,6 +61,9 @@ triage:
     topic: triaje.eventos
     partitions: 3
     replicas: 1
+  security:
+    # X-API-Key for every endpoint except /actuator/health/**. No default: startup fails without the variable.
+    api-key: ${TRIAGE_API_KEY}
 
 server:
   port: ${TRIAGE_SERVER_PORT:8080}
@@ -63,4 +72,34 @@ management:
   endpoints:
     web:
       exposure:
-        include: health,info
+        include: health,info,prometheus
+  endpoint:
+    health:
+      probes:
+        # /actuator/health/liveness and /actuator/health/readiness, also outside Kubernetes
+        enabled: true
+      group:
+        readiness:
+          # Ready only while PostgreSQL answers. Kafka is not included: event publication is best effort.
+          include: readinessState,r2dbc
+  tracing:
+    # No exporter (OpenTelemetry export is level 3): spans only provide the traceId/spanId for logs and Kafka headers
+    sampling:
+      probability: 1.0
+
+logging:
+  structured:
+    format:
+      # JSON lines (Elastic Common Schema) with traceId and spanId; the "local" profile switches to plain text
+      console: ecs
+
+---
+spring:
+  config:
+    activate:
+      on-profile: local
+logging:
+  structured:
+    format:
+      # Plain text for local runs; Boot's pattern still shows [application,traceId,spanId]
+      console: ""

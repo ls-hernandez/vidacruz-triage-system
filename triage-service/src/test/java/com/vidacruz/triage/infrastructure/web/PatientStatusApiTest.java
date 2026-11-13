@@ -13,6 +13,7 @@ import com.vidacruz.triage.application.port.PatientRepository;
 import com.vidacruz.triage.application.port.TransactionRunner;
 import com.vidacruz.triage.domain.Patient;
 import com.vidacruz.triage.domain.PatientStatus;
+import com.vidacruz.triage.support.ApiKeyTestConfiguration;
 import com.vidacruz.triage.support.PatientEventsConsumer;
 import java.math.BigDecimal;
 import java.time.Clock;
@@ -52,7 +53,7 @@ import reactor.test.StepVerifier;
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
 		properties = "triage.escalation.enabled=false")
 @AutoConfigureWebTestClient
-@Import(TestcontainersConfiguration.class)
+@Import({ TestcontainersConfiguration.class, ApiKeyTestConfiguration.class })
 class PatientStatusApiTest {
 
 	private static final String PATH = "/triage/pacientes";

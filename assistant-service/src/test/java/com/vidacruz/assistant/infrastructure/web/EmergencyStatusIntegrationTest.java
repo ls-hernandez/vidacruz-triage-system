@@ -5,6 +5,7 @@ import static org.awaitility.Awaitility.await;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.vidacruz.assistant.TestcontainersConfiguration;
+import com.vidacruz.assistant.support.ApiKeyTestConfiguration;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.HashMap;
@@ -42,7 +43,7 @@ import org.testcontainers.kafka.KafkaContainer;
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @AutoConfigureWebTestClient
-@Import(TestcontainersConfiguration.class)
+@Import({ TestcontainersConfiguration.class, ApiKeyTestConfiguration.class })
 class EmergencyStatusIntegrationTest {
 
 	private static final String PATH = "/asistente/estado-urgencias";

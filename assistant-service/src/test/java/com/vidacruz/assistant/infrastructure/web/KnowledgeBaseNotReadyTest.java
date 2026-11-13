@@ -5,6 +5,7 @@ import static org.awaitility.Awaitility.await;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.vidacruz.assistant.TestcontainersConfiguration;
+import com.vidacruz.assistant.support.ApiKeyTestConfiguration;
 import com.vidacruz.assistant.support.KeywordEmbeddingModel;
 import com.vidacruz.assistant.support.ScriptedChatModel;
 import java.time.Duration;
@@ -24,7 +25,7 @@ import org.springframework.test.web.reactive.server.WebTestClient;
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
 		properties = "test.ai.embedding.fail-at-start=true")
 @AutoConfigureWebTestClient
-@Import(TestcontainersConfiguration.class)
+@Import({ TestcontainersConfiguration.class, ApiKeyTestConfiguration.class })
 class KnowledgeBaseNotReadyTest {
 
 	@Autowired

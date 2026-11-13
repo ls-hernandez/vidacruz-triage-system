@@ -7,14 +7,17 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.vidacruz.assistant.TestcontainersConfiguration;
 import com.vidacruz.assistant.domain.ClinicalAnswer;
 import com.vidacruz.assistant.infrastructure.rag.ProtocolIndex;
+import com.vidacruz.assistant.support.ApiKeyTestConfiguration;
 import com.vidacruz.assistant.support.KeywordEmbeddingModel;
 import com.vidacruz.assistant.support.ScriptedChatModel;
 import io.github.resilience4j.circuitbreaker.CircuitBreaker;
 import io.github.resilience4j.circuitbreaker.CircuitBreakerRegistry;
+import io.micrometer.core.instrument.MeterRegistry;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -32,7 +35,7 @@ import org.springframework.test.web.reactive.server.WebTestClient;
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @AutoConfigureWebTestClient
-@Import(TestcontainersConfiguration.class)
+@Import({ TestcontainersConfiguration.class, ApiKeyTestConfiguration.class })
 class ClinicalQueryApiTest {
 
 	static final String PATH = "/asistente/consulta";
@@ -54,6 +57,9 @@ class ClinicalQueryApiTest {
 
 	@Autowired
 	private ProtocolIndex index;
+
+	@Autowired
+	private MeterRegistry meterRegistry;
 
 	@BeforeEach
 	void setUp() {
@@ -244,6 +250,62 @@ class ClinicalQueryApiTest {
 
 		assertThat(problem.get("title").asText()).isEqualTo("Datos inválidos");
 		assertThat(problem.get("errors")).isEmpty();
+	}
+
+	// --- LLM latency metric -------------------------------------------------------------------------------------
+
+	@Test
+	void answeredQuestionTimesTheEmbeddingAndTheChatCall() {
+		long embedding = llmCalls("embedding", "success");
+		long chatCalls = llmCalls("chat", "success");
+
+		ok(HYPERTENSION);
+
+		assertThat(llmCalls("embedding", "success")).isEqualTo(embedding + 1);
+		assertThat(llmCalls("chat", "success")).isEqualTo(chatCalls + 1);
+		assertThat(meterRegistry.get("assistant.llm.latency").tag("operation", "chat").tag("outcome", "success")
+			.timer().totalTime(TimeUnit.NANOSECONDS)).isPositive();
+	}
+
+	@Test
+	void questionWithoutProtocolTimesOnlyTheEmbedding() {
+		long embedding = llmCalls("embedding", "success");
+		long chatCalls = llmCalls("chat", "success") + llmCalls("chat", "error");
+
+		ok(DIABETES);
+
+		assertThat(llmCalls("embedding", "success")).isEqualTo(embedding + 1);
+		assertThat(llmCalls("chat", "success") + llmCalls("chat", "error")).isEqualTo(chatCalls);
+	}
+
+	@Test
+	void providerFailuresAreTimedAsErrors() {
+		long embeddingErrors = llmCalls("embedding", "error");
+		long chatErrors = llmCalls("chat", "error");
+
+		embeddings.setFailing(true);
+		assertUnavailable(HYPERTENSION);
+		embeddings.setFailing(false);
+		chat.fail(new IllegalStateException("Simulated chat provider outage"));
+		assertUnavailable(HYPERTENSION);
+
+		assertThat(llmCalls("embedding", "error")).isEqualTo(embeddingErrors + 1);
+		assertThat(llmCalls("chat", "error")).isEqualTo(chatErrors + 1);
+	}
+
+	@Test
+	void callsRejectedByTheOpenCircuitAreNotTimed() {
+		circuitBreakers.circuitBreaker("chat").transitionToOpenState();
+		long chatCalls = llmCalls("chat", "success") + llmCalls("chat", "error");
+
+		assertUnavailable(HYPERTENSION);
+
+		assertThat(llmCalls("chat", "success") + llmCalls("chat", "error")).isEqualTo(chatCalls);
+	}
+
+	private long llmCalls(String operation, String outcome) {
+		return meterRegistry.get("assistant.llm.latency").tag("operation", operation).tag("outcome", outcome)
+			.timer().count();
 	}
 
 	// --- helpers ------------------------------------------------------------------------------------------------

@@ -40,6 +40,11 @@ public final class PatientEventsConsumer {
 	 * least {@code expected} events arrived (or the timeout), then a short extra period for unexpected ones.
 	 */
 	public List<JsonNode> eventsFor(UUID patientId, int expected) {
+		return recordsFor(patientId, expected).stream().map(record -> parse(record.value())).toList();
+	}
+
+	/** Same as {@link #eventsFor}, but returns the raw records (with their headers, e.g. {@code traceparent}). */
+	public List<ConsumerRecord<String, String>> recordsFor(UUID patientId, int expected) {
 		String key = patientId.toString();
 		Map<String, Object> config = Map.of(
 				ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers,
@@ -47,7 +52,7 @@ public final class PatientEventsConsumer {
 				ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest",
 				ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class,
 				ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class);
-		List<JsonNode> events = new ArrayList<>();
+		List<ConsumerRecord<String, String>> events = new ArrayList<>();
 		try (KafkaConsumer<String, String> consumer = new KafkaConsumer<>(config)) {
 			consumer.subscribe(List.of(TOPIC));
 			Instant deadline = Instant.now().plus(TIMEOUT);
@@ -55,7 +60,7 @@ public final class PatientEventsConsumer {
 			while (Instant.now().isBefore(settleUntil != null ? settleUntil : deadline)) {
 				for (ConsumerRecord<String, String> record : consumer.poll(Duration.ofMillis(250))) {
 					if (key.equals(record.key())) {
-						events.add(parse(record.value()));
+						events.add(record);
 					}
 				}
 				if (settleUntil == null && events.size() >= expected) {

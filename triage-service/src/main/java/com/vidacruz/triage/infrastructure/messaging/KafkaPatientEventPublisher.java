@@ -4,7 +4,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.vidacruz.triage.application.port.PatientEventPublisher;
 import com.vidacruz.triage.domain.PatientEvent;
 import org.springframework.kafka.core.KafkaTemplate;
-import org.springframework.stereotype.Component;
 import reactor.core.publisher.Mono;
 import reactor.core.scheduler.Schedulers;
 
@@ -15,8 +14,11 @@ import reactor.core.scheduler.Schedulers;
  * consumers depend only on the JSON contract. {@code KafkaTemplate.send} may block while it fetches metadata
  * ({@code max.block.ms}), so it runs on the bounded elastic scheduler; the result completes on broker acknowledgement
  * or fails within the producer timeouts configured in {@code application.yml}.
+ * <p>
+ * The template is observed ({@code spring.kafka.template.observation-enabled}): the W3C {@code traceparent} header of
+ * the current trace is added to each record. Automatic context propagation restores that trace on the
+ * {@code boundedElastic} thread that calls {@code send}. Wired by {@link PatientEventPublisherConfig}.
  */
-@Component
 class KafkaPatientEventPublisher implements PatientEventPublisher {
 
 	private final KafkaTemplate<String, String> kafkaTemplate;

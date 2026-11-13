@@ -10,7 +10,10 @@ import com.vidacruz.triage.application.port.PatientRepository;
 import com.vidacruz.triage.domain.Patient;
 import com.vidacruz.triage.domain.TriageLevel;
 import com.vidacruz.triage.domain.VitalSigns;
+import com.vidacruz.triage.infrastructure.metrics.MeteredPatientEventPublisher;
+import com.vidacruz.triage.support.ApiKeyTestConfiguration;
 import com.vidacruz.triage.support.PatientEventsConsumer;
+import io.micrometer.core.instrument.MeterRegistry;
 import java.math.BigDecimal;
 import java.time.Duration;
 import java.time.Instant;
@@ -41,7 +44,7 @@ import reactor.test.StepVerifier;
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
 		properties = "triage.escalation.enabled=false")
 @AutoConfigureWebTestClient
-@Import(TestcontainersConfiguration.class)
+@Import({ TestcontainersConfiguration.class, ApiKeyTestConfiguration.class })
 class EscalationIntegrationTest {
 
 	private static final String PATH = "/triage/pacientes";
@@ -67,6 +70,9 @@ class EscalationIntegrationTest {
 
 	@Autowired
 	private PatientRepository patientRepository;
+
+	@Autowired
+	private MeterRegistry meterRegistry;
 
 	@Test
 	void escalatesAnOverduePatientOnceWithAuditEventAndFlag() {
@@ -121,6 +127,7 @@ class EscalationIntegrationTest {
 		UUID id = registerE1();
 		makeOverdue(id);
 		Instant now = Instant.now().truncatedTo(ChronoUnit.MICROS);
+		double escalationsBefore = escalations("CRITICAL");
 
 		Mono<Optional<Patient>> first = attempt(id, now);
 		Mono<Optional<Patient>> second = attempt(id, now);
@@ -130,6 +137,9 @@ class EscalationIntegrationTest {
 				.filteredOn(Optional::isPresent)
 				.hasSize(1))
 			.verifyComplete();
+
+		// the attempt that matched no row is not counted (RN-03)
+		assertThat(escalations("CRITICAL")).isEqualTo(escalationsBefore + 1);
 
 		assertThat(auditTrail(id)).containsExactly(REGISTRATION, ESCALATION);
 		assertThat(events(id, 2)).extracting(event -> event.get("eventType").asText())
@@ -176,6 +186,10 @@ class EscalationIntegrationTest {
 	// --- helpers ----------------------------------------------------------------------------------------------
 
 	/** One escalation attempt on its own thread; {@code Optional.empty()} if this attempt did not escalate. */
+	private double escalations(String level) {
+		return meterRegistry.get(MeteredPatientEventPublisher.ESCALATIONS).tag("level", level).counter().count();
+	}
+
 	private Mono<Optional<Patient>> attempt(UUID id, Instant now) {
 		return escalateOverduePatients.escalate(id, now)
 			.map(Optional::of)
