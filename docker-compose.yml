@@ -1,5 +1,8 @@
 name: vidacruz
 
+# Whole system: docker compose up --build   (infrastructure only: docker compose up -d postgres kafka redis)
+# Variables come from .env (copy .env.example); no secret is written in this file.
+
 services:
   postgres:
     image: postgres:16
@@ -52,6 +55,73 @@ services:
       interval: 5s
       timeout: 3s
       retries: 10
+
+  # --- application services --------------------------------------------------------------------------------------
+  # Inside the compose network every dependency is reached on its internal port (postgres:5432, kafka:19092,
+  # redis:6379); the *_PORT variables of .env are only the ports published to the host. Images skip the tests:
+  # run ./mvnw verify (needs Docker for Testcontainers) before building.
+  triage-service:
+    build:
+      context: .
+      dockerfile: triage-service/Dockerfile
+    environment:
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: "5432"
+      POSTGRES_DB: ${POSTGRES_DB:-triage}
+      POSTGRES_USER: ${POSTGRES_USER:-triage}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required (copy .env.example to .env)}
+      KAFKA_BOOTSTRAP_SERVERS: kafka:19092
+      TRIAGE_SERVER_PORT: "8080"
+      TRIAGE_API_KEY: ${TRIAGE_API_KEY:?TRIAGE_API_KEY is required (copy .env.example to .env)}
+      # No SPRING_PROFILES_ACTIVE: default profile, JSON (ECS) logs with traceId/spanId
+    ports:
+      - "${TRIAGE_SERVER_PORT:-8080}:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    healthcheck:
+      # Public readiness probe (UP only while PostgreSQL answers); busybox wget is in the alpine runtime image
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://localhost:8080/actuator/health/readiness || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 60s
+    # Real limit for -XX:MaxRAMPercentage=75 (set in the image)
+    mem_limit: 768m
+    restart: unless-stopped
+
+  assistant-service:
+    build:
+      context: .
+      dockerfile: assistant-service/Dockerfile
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: kafka:19092
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
+      ASSISTANT_SERVER_PORT: "8081"
+      ASSISTANT_API_KEY: ${ASSISTANT_API_KEY:?ASSISTANT_API_KEY is required (copy .env.example to .env)}
+      # ":-" also turns an empty value into the placeholder: Spring AI rejects an empty key (assumption 1).
+      # Without a real key the service starts and the clinical queries answer 503.
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-not-configured}
+    ports:
+      - "${ASSISTANT_SERVER_PORT:-8081}:8081"
+    # Not on triage-service: the services only talk through Kafka (it waits for the topic if it starts first)
+    depends_on:
+      kafka:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      # Public readiness probe (UP only while Redis answers; never depends on the LLM)
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://localhost:8081/actuator/health/readiness || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 60s
+    mem_limit: 768m
+    restart: unless-stopped
 
 volumes:
   postgres-data:
