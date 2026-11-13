@@ -23,6 +23,15 @@ public record AuditEntry(
 		Objects.requireNonNull(occurredAt, "occurredAt must not be null");
 	}
 
+	/**
+	 * Status change from {@code previousStatus} to the state of {@code updated}, at its {@code statusChangedAt}.
+	 * {@code updated} must be the persisted row after the change.
+	 */
+	public static AuditEntry statusChange(PatientStatus previousStatus, Patient updated) {
+		return new AuditEntry(updated.id(), previousStatus, updated.status(),
+				PatientEventType.forStatusChange(updated.status()), updated.statusChangedAt());
+	}
+
 	public static AuditEntry registration(Patient patient) {
 		return new AuditEntry(patient.id(), null, patient.status(), PatientEventType.PATIENT_REGISTERED,
 				patient.registeredAt());

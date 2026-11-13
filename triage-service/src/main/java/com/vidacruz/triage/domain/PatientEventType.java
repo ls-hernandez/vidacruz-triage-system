@@ -9,6 +9,15 @@ public enum PatientEventType {
 	PATIENT_REGISTERED,
 	PATIENT_IN_CONSULTATION,
 	PATIENT_DISCHARGED,
-	PATIENT_ESCALATED
+	PATIENT_ESCALATED;
+
+	/** Event produced by a status change into {@code newStatus} (RF-02). */
+	public static PatientEventType forStatusChange(PatientStatus newStatus) {
+		return switch (newStatus) {
+			case IN_CONSULTATION -> PATIENT_IN_CONSULTATION;
+			case DISCHARGED -> PATIENT_DISCHARGED;
+			case REGISTERED -> throw new IllegalArgumentException("No patient can change its status to REGISTERED");
+		};
+	}
 
 }

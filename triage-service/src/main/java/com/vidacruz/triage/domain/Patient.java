@@ -10,6 +10,7 @@ import java.util.UUID;
  *
  * @param slaMinutes  SLA captured at registration (RN-02), so later configuration changes do not affect it
  * @param escalatedAt {@code null} unless {@code escalated}
+ * @param version     incremented on every status change; used for optimistic concurrency (RF-02)
  */
 public record Patient(
 		UUID id,
@@ -23,7 +24,8 @@ public record Patient(
 		boolean escalated,
 		Instant escalatedAt,
 		Instant registeredAt,
-		Instant statusChangedAt) {
+		Instant statusChangedAt,
+		long version) {
 
 	public Patient {
 		Objects.requireNonNull(id, "id must not be null");
@@ -39,11 +41,24 @@ public record Patient(
 		}
 	}
 
-	/** New patient in {@link PatientStatus#REGISTERED}, not escalated. */
+	/** New patient in {@link PatientStatus#REGISTERED}, not escalated, version 0. */
 	public static Patient register(UUID id, String fullName, int age, VitalSigns vitalSigns, String chiefComplaint,
 			TriageLevel level, int slaMinutes, Instant now) {
 		return new Patient(id, fullName, age, vitalSigns, chiefComplaint, level, slaMinutes,
-				PatientStatus.REGISTERED, false, null, now, now);
+				PatientStatus.REGISTERED, false, null, now, now, 0);
+	}
+
+	/**
+	 * Checks that this patient may move to {@code target} (RF-02). The change itself is applied by the repository
+	 * with a conditional update, so concurrent changes of other columns (e.g. escalation) are never overwritten.
+	 *
+	 * @throws InvalidStatusTransitionException if the transition is not allowed, including staying in the same status
+	 */
+	public void requireCanChangeStatusTo(PatientStatus target) {
+		Objects.requireNonNull(target, "target must not be null");
+		if (!status.canTransitionTo(target)) {
+			throw new InvalidStatusTransitionException(status, target);
+		}
 	}
 
 }
