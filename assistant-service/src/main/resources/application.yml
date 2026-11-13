@@ -9,6 +9,16 @@ spring:
       - optional:file:../.env[.properties]
   kafka:
     bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    consumer:
+      # RF-04 B: the view is rebuilt only from triaje.eventos; a new group reads the topic from the beginning
+      group-id: ${ASSISTANT_CONSUMER_GROUP:assistant-service}
+      auto-offset-reset: earliest
+      # Events are JSON text without type headers; the listener parses them into its own DTO
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      properties:
+        # The topic (and its partition count) belongs to the triage service: wait for it, never auto-create it
+        allow.auto.create.topics: false
   data:
     redis:
       host: ${REDIS_HOST:localhost}
@@ -18,6 +28,10 @@ spring:
       # Spring AI rejects an empty key at startup. The placeholder lets the service start without a key;
       # LLM calls then fail and will be turned into 503 by the circuit breaker (see docs/assumptions.md).
       api-key: ${OPENAI_API_KEY:not-configured}
+
+assistant:
+  events:
+    topic: triaje.eventos
 
 server:
   port: ${ASSISTANT_SERVER_PORT:8081}
