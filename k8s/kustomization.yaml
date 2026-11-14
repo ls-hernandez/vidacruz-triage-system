@@ -1,0 +1,26 @@
+# kubectl apply -k k8s/   (create the Secret "vidacruz-secrets" first: see k8s/README.md)
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: vidacruz
+
+labels:
+  - pairs:
+      app.kubernetes.io/part-of: vidacruz
+
+# The Secret is intentionally not listed: it is created with kubectl and apply -k never overwrites it
+resources:
+  - namespace.yaml
+  - configmap.yaml
+  - triage-service.yaml
+  - assistant-service.yaml
+  - ingress.yaml
+
+# Replace <acr-name> and <tag> before applying (images built and pushed as in k8s/README.md)
+images:
+  - name: triage-service
+    newName: <acr-name>.azurecr.io/vidacruz/triage-service
+    newTag: "<tag>"
+  - name: assistant-service
+    newName: <acr-name>.azurecr.io/vidacruz/assistant-service
+    newTag: "<tag>"

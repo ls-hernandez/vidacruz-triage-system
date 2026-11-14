@@ -1,0 +1,31 @@
+# Non-secret configuration shared by both services (each one ignores the keys it does not use).
+# Secrets (API keys, passwords, connection strings) live in the Secret "vidacruz-secrets", created with kubectl
+# (see k8s/README.md); it is never versioned.
+#
+# Dependencies are Azure managed services, not pods in the cluster. Replace every <placeholder>.
+# A change here does not restart the pods: kubectl rollout restart deployment -n vidacruz
+#
+# SPRING_PROFILES_ACTIVE is intentionally not set: the default profile is the production one (JSON ECS logs).
+# Never activate "local" here (plain-text logs).
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: vidacruz-config
+data:
+  # --- Azure Database for PostgreSQL Flexible Server (triage-service) ---------------------------------------------
+  # The full URLs replace the localhost-based ones of application.yml; Flexible Server requires TLS.
+  SPRING_R2DBC_URL: "r2dbc:postgresql://<pg-server>.postgres.database.azure.com:5432/triage?sslMode=require"
+  SPRING_FLYWAY_URL: "jdbc:postgresql://<pg-server>.postgres.database.azure.com:5432/triage?sslmode=require"
+  POSTGRES_USER: "triage"
+
+  # --- Azure Event Hubs, Kafka endpoint (both services) -----------------------------------------------------------
+  # Standard tier or higher. The SASL JAAS config (with the connection string) is in the Secret.
+  KAFKA_BOOTSTRAP_SERVERS: "<eventhubs-namespace>.servicebus.windows.net:9093"
+  SPRING_KAFKA_SECURITY_PROTOCOL: "SASL_SSL"
+  SPRING_KAFKA_PROPERTIES_SASL_MECHANISM: "PLAIN"
+
+  # --- Azure Cache for Redis (assistant-service) ------------------------------------------------------------------
+  # TLS port 6380 (the non-TLS port 6379 is disabled by default). The access key is in the Secret.
+  REDIS_HOST: "<redis-name>.redis.cache.windows.net"
+  REDIS_PORT: "6380"
+  SPRING_DATA_REDIS_SSL_ENABLED: "true"

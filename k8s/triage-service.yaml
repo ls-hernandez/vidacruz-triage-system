@@ -1,0 +1,122 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: triage-service
+  labels:
+    app.kubernetes.io/name: triage-service
+spec:
+  # 2 replicas are safe: every replica runs the escalation scheduler, but escalating is a single
+  # UPDATE ... WHERE status='REGISTERED' AND escalated=false RETURNING, so only one replica gets the row and
+  # publishes/audits it (RN-03, docs/assumptions.md 19). Flyway takes a PostgreSQL lock, so both pods can start
+  # at the same time.
+  replicas: 2
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: triage-service
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: triage-service
+    spec:
+      automountServiceAccountToken: false
+      terminationGracePeriodSeconds: 30
+      securityContext:
+        # The image user "app" is not numeric, so the kubelet needs its UID/GID to enforce runAsNonRoot
+        runAsNonRoot: true
+        runAsUser: 100
+        runAsGroup: 101
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: triage-service
+          # Placeholder; the real <acr-name>.azurecr.io/vidacruz/triage-service:<tag> is set in kustomization.yaml
+          image: triage-service
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8080
+          envFrom:
+            - configMapRef:
+                name: vidacruz-config
+          env:
+            # Only the secrets this service needs (not the whole Secret)
+            - name: TRIAGE_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: vidacruz-secrets
+                  key: TRIAGE_API_KEY
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: vidacruz-secrets
+                  key: POSTGRES_PASSWORD
+            - name: SPRING_KAFKA_PROPERTIES_SASL_JAAS_CONFIG
+              valueFrom:
+                secretKeyRef:
+                  name: vidacruz-secrets
+                  key: KAFKA_SASL_JAAS_CONFIG
+                  optional: true
+          # Memory request = limit: the image sets -XX:MaxRAMPercentage=75, so the heap is ~576 MB of this limit.
+          # The CPU limit also sizes the JVM pools (GC threads, Netty, boundedElastic) and speeds up startup.
+          resources:
+            requests:
+              cpu: 500m
+              memory: 768Mi
+            limits:
+              cpu: "2"
+              memory: 768Mi
+          # Up to 3 minutes to start (Flyway + JVM warm-up) before liveness takes over
+          startupProbe:
+            httpGet:
+              path: /actuator/health/liveness
+              port: http
+            periodSeconds: 5
+            failureThreshold: 36
+          # Liveness has no external dependency: a PostgreSQL outage must not restart the pods
+          livenessProbe:
+            httpGet:
+              path: /actuator/health/liveness
+              port: http
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 3
+          # Ready only while PostgreSQL answers (Kafka is not included: publication is best effort)
+          readinessProbe:
+            httpGet:
+              path: /actuator/health/readiness
+              port: http
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 3
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            # Writable /tmp for the JVM (hsperfdata) and Netty native libraries; the rest is read-only
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: triage-service
+  labels:
+    app.kubernetes.io/name: triage-service
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: triage-service
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http

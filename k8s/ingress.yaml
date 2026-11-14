@@ -1,0 +1,31 @@
+# Public entry point through the AKS application routing add-on (managed NGINX).
+# Only the business APIs are exposed: /actuator stays inside the cluster (probes go straight to the pods).
+# No host or TLS yet: see k8s/README.md to add a DNS name and a certificate.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: vidacruz
+  annotations:
+    # RF-06 SSE stream (/asistente/alertas/stream): send each event as soon as it is written and keep idle
+    # connections open (the service sends a heartbeat every 15 s anyway)
+    nginx.ingress.kubernetes.io/proxy-buffering: "off"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+spec:
+  ingressClassName: webapprouting.kubernetes.azure.com
+  rules:
+    - http:
+        paths:
+          - path: /triage
+            pathType: Prefix
+            backend:
+              service:
+                name: triage-service
+                port:
+                  name: http
+          - path: /asistente
+            pathType: Prefix
+            backend:
+              service:
+                name: assistant-service
+                port:
+                  name: http
