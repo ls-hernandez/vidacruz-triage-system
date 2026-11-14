@@ -57,6 +57,14 @@ assistant:
   security:
     # X-API-Key for every endpoint except /actuator/health/**. No default: startup fails without the variable.
     api-key: ${ASSISTANT_API_KEY}
+  # RF-06: escalation alerts over Server-Sent Events (ADR-004, docs/assumptions.md 40)
+  alerts:
+    # SSE comment that keeps idle connections open through proxies and load balancers
+    heartbeat: ${ASSISTANT_ALERTS_HEARTBEAT:PT15S}
+    # Alerts buffered per slow client; beyond that its oldest pending alerts are dropped (logged)
+    client-buffer: ${ASSISTANT_ALERTS_CLIENT_BUFFER:64}
+    # Escalations older than this are not alerted: they come from a replay of the topic
+    max-age: ${ASSISTANT_ALERTS_MAX_AGE:PT15M}
   # RF-04 A: retrieval-augmented answers over the protocol corpus (see docs/assumptions.md 27-32)
   rag:
     corpus: classpath:corpus/protocols.json

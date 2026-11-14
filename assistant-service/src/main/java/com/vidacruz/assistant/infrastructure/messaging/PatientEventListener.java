@@ -2,6 +2,7 @@ package com.vidacruz.assistant.infrastructure.messaging;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.vidacruz.assistant.application.ApplyPatientEvent;
+import com.vidacruz.assistant.application.NotifyEscalation;
 import com.vidacruz.assistant.domain.PatientEvent;
 import java.time.Duration;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
@@ -13,7 +14,11 @@ import reactor.core.publisher.Mono;
 import reactor.util.retry.Retry;
 
 /**
- * RF-04 B: consumes {@code triaje.eventos} and applies each event to the Redis view.
+ * RF-04 B and RF-06: consumes {@code triaje.eventos}, applies each event to the Redis view and, for
+ * {@code paciente_escalado}, alerts the medical team.
+ * <p>
+ * The alert goes first and outside the Redis retries: retrying a view write never repeats an alert, and a Redis outage
+ * neither delays nor prevents it. A failing alert is logged and never affects the view or the offset commit.
  * <p>
  * Returning {@link Mono} makes Spring Kafka use async acknowledgements (manual ack mode with out-of-order commits):
  * the offset of a record is committed only once its {@code Mono} completes. The container does not wait for that
@@ -36,10 +41,13 @@ class PatientEventListener {
 	static final Duration FIRST_BACKOFF = Duration.ofMillis(200);
 
 	private final ApplyPatientEvent applyPatientEvent;
+	private final NotifyEscalation notifyEscalation;
 	private final ObjectMapper objectMapper;
 
-	PatientEventListener(ApplyPatientEvent applyPatientEvent, ObjectMapper objectMapper) {
+	PatientEventListener(ApplyPatientEvent applyPatientEvent, NotifyEscalation notifyEscalation,
+			ObjectMapper objectMapper) {
 		this.applyPatientEvent = applyPatientEvent;
+		this.notifyEscalation = notifyEscalation;
 		this.objectMapper = objectMapper;
 	}
 
@@ -55,7 +63,13 @@ class PatientEventListener {
 					record.offset(), ex.getMessage());
 			return Mono.empty();
 		}
-		return applyPatientEvent.apply(event)
+		// defer: an exception thrown while building the alert is handled like a failed alert
+		Mono<Void> alert = Mono.defer(() -> notifyEscalation.handle(event)).onErrorResume(ex -> {
+			log.error("Could not alert the escalation of patient {} (event {}); view update continues",
+					event.patientId(), event.eventId(), ex);
+			return Mono.empty();
+		});
+		Mono<Void> view = applyPatientEvent.apply(event)
 			.retryWhen(Retry.backoff(MAX_RETRIES, FIRST_BACKOFF))
 			// runs after Redis answered, on another thread: the traceId of the event is still in the MDC
 			.doOnSuccess(ignored -> log.debug("Applied patient event {} ({}) for patient {}", event.eventId(),
@@ -65,7 +79,8 @@ class PatientEventListener {
 						event.eventId(), event.patientId(), record.topic(), record.partition(), record.offset(),
 						MAX_RETRIES, ex);
 				return Mono.empty();
-			})
+			});
+		return alert.then(view)
 			// Spring Kafka subscribes with toFuture() while the listener observation is open: capture it into the
 			// Reactor context so the traceId is restored on the Redis client threads (automatic propagation)
 			.contextCapture();

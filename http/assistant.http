@@ -28,6 +28,23 @@ X-API-Key: {{assistantApiKey}}
 GET {{assistantUrl}}/asistente/estado-urgencias
 X-API-Key: {{assistantApiKey}}
 
+### RF-06 — Escalation alerts, live stream (expected: 200 text/event-stream that stays open)
+# Right away and every 15 s:   :heartbeat
+# When a patient exceeds its SLA (triage scheduler, set TRIAGE_SLA_* low to try it):
+#   id:<eventId>
+#   event:alerta_escalamiento
+#   data:{"pacienteId":"…","nivel":"CRITICO","fechaEscalamiento":"2026-11-13T10:15:00.123456Z",
+#         "mensaje":"Paciente CRITICO superó su SLA sin ser atendido"}
+# No history: only escalations consumed while connected are sent. A repeated alert (Kafka redelivery) has the same
+# pacienteId and id. From a terminal: curl -N -H "X-API-Key: <ASSISTANT_API_KEY>" http://localhost:8081/asistente/alertas/stream
+GET {{assistantUrl}}/asistente/alertas/stream
+Accept: text/event-stream
+X-API-Key: {{assistantApiKey}}
+
+### RF-06 — Escalation alerts without X-API-Key (expected: 401 ProblemDetail "Falta el header X-API-Key.")
+GET {{assistantUrl}}/asistente/alertas/stream
+Accept: text/event-stream
+
 ### RF-04 A — Example 1: hypertensive crisis (expected: 200, fuentes contains {"protocolo": "PROTO-001", "seccion": "Medidas iniciales"})
 # 503 "El asistente clínico no está disponible..." if OPENAI_API_KEY is missing or the corpus is still being indexed.
 POST {{assistantUrl}}/asistente/consulta
